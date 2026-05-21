@@ -15,14 +15,14 @@ import requests
 import pandas as pd
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
-CONFIG_FILE = SCRIPT_DIR / "config.json"
 CACHE_FILE = SCRIPT_DIR / "data" / "hunter_cache.json"
 CREDITS_FILE = SCRIPT_DIR / "data" / "hunter_credits.json"
 
 
 def load_config():
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """Reexport del loader centralizado para backward compat."""
+    from lib.config_loader import load_config as _load_config
+    return _load_config()
 
 
 def _load_json(path, default):

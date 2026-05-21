@@ -139,35 +139,68 @@ brj-prospector/
 | ZipRecruiter | ❌ | Cloudflare bloquea scraping. Sin proxies pagos. |
 | Google for Jobs | ✅ | Funciona como meta-aggregator. |
 
-## Deploy a Streamlit Cloud (opcional)
+## Deploy a Streamlit Cloud
 
-1. Push repo a GitHub (asumimos repo privado por las API keys aunque estén gitignored)
-2. https://share.streamlit.io → New app → conectar repo
-3. App settings → **Secrets** → pegar el contenido de `config.json` en formato TOML:
+El código usa `lib/config_loader.py` que detecta automáticamente:
+- **En Streamlit Cloud**: lee de `st.secrets`
+- **Local**: lee de `config.json`
+
+No hace falta cambiar nada en el código para deploy.
+
+### Pasos
+
+1. Asegurate que el repo está pushed a GitHub (privado).
+2. Andá a **share.streamlit.io** → login con GitHub.
+3. **New app** → seleccioná el repo `brj-prospector` → branch `main` → main file `app.py`.
+4. **Advanced settings** → **Secrets** → pegá tu config en formato TOML (ver abajo).
+5. **Deploy**. La URL pública aparece en ~2 min.
+
+### Secrets TOML (copy-paste en Streamlit Cloud)
+
+Andá a `Settings → Secrets` del app, pegá esto reemplazando con tus values reales:
 
 ```toml
-[ghl]
-location_id = "..."
-pit = "pit-..."
-base_url = "https://services.leadconnectorhq.com"
-api_version = "2021-07-28"
-
 [hunter]
-api_key = "..."
+api_key = "tu_hunter_api_key"
 monthly_limit = 1000
 
 [google_cse]
-api_key = "..."
-cse_id = "..."
+api_key = "tu_google_api_key"
+cse_id = "tu_cse_id"
 
 [brj_specific]
-recruiter_role_keywords = ["recruiter", "...", "..."]
-# ... (etc)
+recruiter_role_keywords = [
+  "recruiter", "recruiting", "talent acquisition",
+  "hr manager", "human resources", "people operations",
+  "hiring manager", "staffing", "head of people",
+  "director of recruitment", "director of hr", "director of talent",
+  "vp of hr", "vp of people", "chief people", "chief talent"
+]
+exclude_role_keywords = ["intern", "junior", "entry level", "assistant"]
+exclude_staffing_keywords = [
+  "staffing", "recruiting", "recruitment", "talent acquisition",
+  "personnel services", "personnel agency", "employment agency",
+  "search firm", "headhunter", "headhunting", "manpower services",
+  "placement services", "talent group", "talent solutions"
+]
+exclude_staffing_companies = [
+  "pridestaff", "robert half", "express employment", "kelly services",
+  "adecco", "manpower", "staffmark", "onin staffing", "spherion",
+  "randstad", "peopleready", "aerotek", "kforce", "addison group",
+  "hays", "the judge group", "michael page", "modis", "tek systems",
+  "insight global"
+]
 ```
 
-4. Deploy. URL pública del app aparece en ~2 min.
+Click `Save`. El app se redeploya automáticamente con los secrets aplicados.
 
-**Nota**: el código actual lee config desde `config.json`. Para usar `st.secrets` en producción cloud, hay que refactorizar el loader. Ver issue futuro.
+### Acceso para BRJ team
+
+Por default, app de Streamlit Cloud es **público con URL única** (no indexable pero accesible para quien tenga el link). Para password-protect:
+
+- Streamlit Cloud free → no tiene auth nativo
+- Opciones para auth: `streamlit-authenticator` package (login form simple) o protección a nivel de Cloudflare/proxy.
+- Por ahora, mantener URL como secret entre el equipo es suficiente.
 
 ## Workflow recomendado para BRJ recruiters
 
