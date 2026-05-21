@@ -93,7 +93,11 @@ def find_recruiter_at_domain(domain, cfg):
     """Pipeline A: prioriza roles de recruiting/HR para encontrar el recruiter
     de la empresa que postea las vacantes."""
     priority_roles = cfg.get("brj_specific", {}).get("recruiter_role_keywords", [])
-    return _hunter_find_with_role_priority(domain, cfg, priority_roles, role_check_fn=is_recruiter_position)
+    # Wrap is_recruiter_position con closure para que solo reciba `pos`
+    return _hunter_find_with_role_priority(
+        domain, cfg, priority_roles,
+        role_check_fn=lambda pos: is_recruiter_position(pos, cfg),
+    )
 
 
 def find_decision_maker_at_domain(domain, cfg, priority_roles=None):
