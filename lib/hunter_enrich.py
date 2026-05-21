@@ -1,0 +1,287 @@
+"""
+hunter_enrich.py - Hunter.io enrichment focused on finding RECRUITERS / HR contacts
+at target companies.
+
+Use case BRJ: por cada vacante encontrada en job boards, queremos el nombre y email
+del recruiter / talent acquisition / HR manager de la empresa que postea.
+"""
+import json
+import time
+from pathlib import Path
+from urllib.parse import urlparse
+from datetime import datetime, timezone
+
+import requests
+import pandas as pd
+
+SCRIPT_DIR = Path(__file__).resolve().parent.parent
+CONFIG_FILE = SCRIPT_DIR / "config.json"
+CACHE_FILE = SCRIPT_DIR / "data" / "hunter_cache.json"
+CREDITS_FILE = SCRIPT_DIR / "data" / "hunter_credits.json"
+
+
+def load_config():
+    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _load_json(path, default):
+    if not path.exists():
+        return default
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
+def _save_json(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def _current_month():
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def load_credits_state():
+    state = _load_json(CREDITS_FILE, {"month": _current_month(), "used": 0})
+    if state.get("month") != _current_month():
+        state = {"month": _current_month(), "used": 0}
+    return state
+
+
+def save_credits_state(state):
+    _save_json(CREDITS_FILE, state)
+
+
+def hunter_credits_remaining(cfg=None):
+    """Devuelve cuántos credits Hunter quedan este mes."""
+    if cfg is None:
+        cfg = load_config()
+    limit = cfg.get("hunter", {}).get("monthly_limit", 1000)
+    state = load_credits_state()
+    return max(0, limit - state.get("used", 0))
+
+
+def domain_from_url(url):
+    if not url or not isinstance(url, str):
+        return None
+    try:
+        parsed = urlparse(url if url.startswith("http") else "https://" + url)
+        d = parsed.netloc.replace("www.", "").lower()
+        return d if d and "." in d else None
+    except Exception:
+        return None
+
+
+def is_recruiter_position(position, cfg):
+    """True si el position parece un rol de recruiting/HR."""
+    if not position:
+        return False
+    p = position.lower()
+    recruiter_kws = cfg.get("brj_specific", {}).get("recruiter_role_keywords", [])
+    exclude_kws = cfg.get("brj_specific", {}).get("exclude_role_keywords", [])
+
+    if any(ex in p for ex in exclude_kws):
+        return False
+    return any(kw in p for kw in recruiter_kws)
+
+
+def find_recruiter_at_domain(domain, cfg):
+    """Pipeline A: prioriza roles de recruiting/HR para encontrar el recruiter
+    de la empresa que postea las vacantes."""
+    priority_roles = cfg.get("brj_specific", {}).get("recruiter_role_keywords", [])
+    return _hunter_find_with_role_priority(domain, cfg, priority_roles, role_check_fn=is_recruiter_position)
+
+
+def find_decision_maker_at_domain(domain, cfg, priority_roles=None):
+    """Pipeline B: prioriza roles de DECISION-MAKER (HR Director, Plant Manager,
+    Operations Manager, etc.) — la persona que CONTRATA staffing.
+
+    priority_roles: lista de keywords de roles a priorizar (override del default).
+    """
+    if not priority_roles:
+        # Fallback genérico para Pipeline B
+        priority_roles = [
+            "hr manager", "hr director", "human resources",
+            "plant manager", "operations manager", "operations director",
+            "general manager", "vp operations", "vp human resources",
+            "talent acquisition", "people operations", "head of people",
+            "hiring manager",
+        ]
+
+    def is_decision_maker(pos, _cfg=cfg):
+        if not pos:
+            return False
+        p = pos.lower()
+        # Exclude junior/non-decision-maker roles
+        exclude = ["intern", "junior", "entry level", "coordinator", "specialist", "associate"]
+        if any(ex in p for ex in exclude):
+            return False
+        return any(k.lower() in p for k in priority_roles)
+
+    return _hunter_find_with_role_priority(domain, cfg, priority_roles, role_check_fn=is_decision_maker)
+
+
+def _hunter_find_with_role_priority(domain, cfg, priority_roles, role_check_fn):
+    """Internal: query Hunter + priorizar emails por role match.
+
+    role_check_fn(position_string) → True si es priority.
+    """
+    api_key = cfg.get("hunter", {}).get("api_key")
+    if not api_key or api_key.startswith("PASTE"):
+        return {"error": "no Hunter API key in config"}
+
+    url = "https://api.hunter.io/v2/domain-search"
+    params = {
+        "domain": domain,
+        "api_key": api_key,
+        "limit": 25,
+        "type": "personal",
+    }
+
+    try:
+        r = requests.get(url, params=params, timeout=15)
+        if r.status_code != 200:
+            return {"error": f"HTTP {r.status_code}", "details": r.text[:200]}
+        data = r.json().get("data", {})
+        emails = data.get("emails", []) or []
+    except Exception as e:
+        return {"error": str(e)}
+
+    if not emails:
+        return {}
+
+    def score(e):
+        pos = (e.get("position") or "").lower()
+        if role_check_fn(pos):
+            return 0
+        # Fallback a roles managerial genéricos
+        if any(k in pos for k in ["director", "manager", "head", "vp", "vice president", "chief"]):
+            return 1
+        return 2
+
+    emails_sorted = sorted(emails, key=score)
+    best = emails_sorted[0]
+    best_score = score(best)
+
+    return {
+        "first_name": best.get("first_name", ""),
+        "last_name": best.get("last_name", ""),
+        "email": best.get("value", ""),
+        "position": best.get("position", ""),
+        "confidence": best.get("confidence", 0),
+        "is_priority_role": best_score == 0,
+        "is_recruiter_role": best_score == 0,  # backward compat con Pipeline A
+    }
+
+
+def lookup_with_cache(domain, cfg, credits_state):
+    """Lookup con cache local + tracking de credits."""
+    if not domain:
+        return {}
+
+    cache = _load_json(CACHE_FILE, {})
+    if domain in cache:
+        return {**cache[domain], "from_cache": True}
+
+    # Check credits
+    limit = cfg.get("hunter", {}).get("monthly_limit", 1000)
+    if credits_state.get("used", 0) >= limit:
+        return {"error": "Hunter monthly limit reached"}
+
+    result = find_recruiter_at_domain(domain, cfg)
+    if not result.get("error"):
+        credits_state["used"] = credits_state.get("used", 0) + 1
+        save_credits_state(credits_state)
+
+    # Cache (incluso si vacío, para evitar re-query del mismo dominio)
+    cache[domain] = result
+    _save_json(CACHE_FILE, cache)
+
+    return result
+
+
+def enrich_dataframe(df, cfg=None, domain_col="company_domain", progress_cb=None, max_lookups=None):
+    """Enriquece un DataFrame con info de recruiter de cada empresa.
+
+    Args:
+        df: DataFrame con al menos una columna 'company_domain'
+        cfg: config dict (auto-loaded si None)
+        domain_col: nombre de la columna que tiene los dominios
+        progress_cb: callback(i, total, domain, result) para UI updates
+        max_lookups: limit hard a cuántos Hunter calls hacer (None = unlimited dentro del monthly limit)
+
+    Returns:
+        DataFrame con columnas adicionales:
+        - recruiter_first_name, recruiter_last_name, recruiter_email,
+          recruiter_position, recruiter_confidence, recruiter_is_priority,
+          hunter_from_cache, hunter_error
+    """
+    if cfg is None:
+        cfg = load_config()
+
+    if df.empty or domain_col not in df.columns:
+        return df
+
+    credits_state = load_credits_state()
+    df = df.copy()
+
+    new_cols = {
+        "recruiter_first_name": [],
+        "recruiter_last_name": [],
+        "recruiter_email": [],
+        "recruiter_position": [],
+        "recruiter_confidence": [],
+        "recruiter_is_priority": [],
+        "hunter_from_cache": [],
+        "hunter_error": [],
+    }
+
+    lookups_done = 0
+    for i, row in enumerate(df.itertuples(index=False)):
+        domain = getattr(row, domain_col, None) if hasattr(row, domain_col) else None
+
+        if not domain:
+            for k in new_cols:
+                new_cols[k].append("")
+            if progress_cb:
+                progress_cb(i + 1, len(df), None, {"skipped": "no domain"})
+            continue
+
+        if max_lookups is not None and lookups_done >= max_lookups:
+            for k in new_cols:
+                new_cols[k].append("")
+            new_cols["hunter_error"][-1] = "skipped (max_lookups reached)"
+            continue
+
+        result = lookup_with_cache(domain, cfg, credits_state)
+        if not result.get("from_cache"):
+            lookups_done += 1
+
+        new_cols["recruiter_first_name"].append(result.get("first_name", ""))
+        new_cols["recruiter_last_name"].append(result.get("last_name", ""))
+        new_cols["recruiter_email"].append(result.get("email", ""))
+        new_cols["recruiter_position"].append(result.get("position", ""))
+        new_cols["recruiter_confidence"].append(result.get("confidence", ""))
+        new_cols["recruiter_is_priority"].append(result.get("is_recruiter_role", False))
+        new_cols["hunter_from_cache"].append(result.get("from_cache", False))
+        new_cols["hunter_error"].append(result.get("error", ""))
+
+        if progress_cb:
+            progress_cb(i + 1, len(df), domain, result)
+
+        # Light rate limit
+        if not result.get("from_cache") and not result.get("error"):
+            time.sleep(0.1)
+
+    for col, vals in new_cols.items():
+        if len(vals) == len(df):
+            df[col] = vals
+        else:
+            # Padding si por alguna razón hubo diferencia (no debería pasar)
+            df[col] = vals + [""] * (len(df) - len(vals))
+
+    return df

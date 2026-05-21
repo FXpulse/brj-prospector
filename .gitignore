@@ -1,0 +1,44 @@
+# ─── SECRETS — NUNCA commit ────────────────────────────────────
+config.json
+.streamlit/secrets.toml
+*.env
+.env
+
+# ─── State files locales (no compartir entre instancias) ─────
+data/*
+!data/.gitkeep
+
+# ─── Logs ──────────────────────────────────────────────────────
+logs/
+*.log
+
+# ─── Cache de Python ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.pytest_cache/
+
+# ─── Streamlit ────────────────────────────────────────────────
+.streamlit/cache/
+
+# ─── IDE / OS ─────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── Virtual environments ────────────────────────────────────
+venv/
+env/
+.venv/
+
+# ─── Test debug files (locales temporales) ────────────────────
+test_*.py
+debug_*.py
+smoke_*.py

@@ -1,0 +1,47 @@
+{
+  "_comment": "Copiar a config.json y reemplazar los PASTE_* con tus credenciales reales. config.json NO se commitea al repo (está en .gitignore).",
+  "ghl": {
+    "_comment": "Credenciales de GoHighLevel para push de contactos. Crear PIT en Settings → Private Integrations del sub-account.",
+    "location_id": "PASTE_GHL_LOCATION_ID",
+    "pit": "PASTE_GHL_PIT_HERE",
+    "base_url": "https://services.leadconnectorhq.com",
+    "api_version": "2021-07-28"
+  },
+  "hunter": {
+    "_comment": "Hunter.io API. Free tier 25/mes, Data-platform 1000/mes. Settings → API en hunter.io.",
+    "api_key": "PASTE_HUNTER_API_KEY",
+    "monthly_limit": 1000
+  },
+  "google_cse": {
+    "_comment": "Google Custom Search Engine. Setup: console.cloud.google.com → enable Custom Search API + programmablesearchengine.google.com.",
+    "api_key": "PASTE_GOOGLE_API_KEY",
+    "cse_id": "PASTE_CSE_ID"
+  },
+  "brj_specific": {
+    "recruiter_role_keywords": [
+      "recruiter", "recruiting", "talent acquisition", "talent acquition",
+      "hr manager", "human resources", "people operations", "people ops",
+      "hiring manager", "staffing", "head of people",
+      "director of recruitment", "director of hr", "director of talent",
+      "vp of hr", "vp of people", "chief people", "chief talent"
+    ],
+    "exclude_role_keywords": [
+      "intern", "junior", "entry level", "assistant"
+    ],
+    "exclude_staffing_keywords": [
+      "staffing", "recruiting", "recruitment", "talent acquisition",
+      "personnel services", "personnel agency", "employment agency",
+      "search firm", "headhunter", "headhunting", "manpower services",
+      "placement services", "talent group", "talent solutions",
+      "agencia de personal", "agencia de empleo", "agencia de talento"
+    ],
+    "exclude_staffing_companies": [
+      "pridestaff", "robert half", "express employment", "kelly services",
+      "adecco", "manpower", "staffmark", "onin staffing", "spherion",
+      "randstad", "peopleready", "people 2.0", "labor finders", "labor ready",
+      "aerotek", "kforce", "addison group", "hays", "the judge group",
+      "michael page", "modis", "tek systems", "insight global",
+      "creative financial staffing", "lhh", "allegis group"
+    ]
+  }
+}
