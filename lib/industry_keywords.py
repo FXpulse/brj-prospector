@@ -36,16 +36,22 @@ INDUSTRY_KEYWORDS = {
             "mechanic industrial",
             "process operator",
         ],
-        # Senior roles que SÍ son nuestros decision-makers (Hunter target)
+        # Decision-makers que REALMENTE manejan staffing day-to-day.
+        # OPERACIONALES, NO C-suite. El recruiter, HR coordinator, plant supervisor
+        # son los que toman decisiones de quién contratar y con qué staffing partner.
         "decision_maker_roles": [
-            "hr manager", "human resources director", "hr director",
-            "plant manager", "operations manager", "operations director",
-            "vp operations", "vp manufacturing", "general manager",
-            "production manager", "manufacturing manager",
-            "talent acquisition", "hiring manager",
-            "people operations", "head of people",
+            # Tier 1: directamente involucrados en hiring
+            "recruiter", "recruiting", "talent acquisition",
+            "hr coordinator", "hr specialist", "hr generalist", "hr assistant",
+            "hiring manager", "hiring coordinator",
+            "staffing coordinator", "staffing specialist",
+            # Tier 2: supervisores operacionales (toman decisiones a nivel piso)
+            "production supervisor", "shift supervisor",
+            "warehouse supervisor", "operations supervisor",
+            "manufacturing supervisor",
+            # Tier 3: HR manager (solo en plantas chicas — son hands-on)
+            "hr manager",
         ],
-        # Empresas a EXCLUIR (chains/franchises sin local decision-making)
         "exclude_companies": [],
     },
 
@@ -70,11 +76,13 @@ INDUSTRY_KEYWORDS = {
             "valet attendant hotel",
         ],
         "decision_maker_roles": [
-            "hr manager", "general manager", "gm",
-            "director of operations", "operations manager",
-            "director of housekeeping", "rooms director",
-            "f&b director", "food beverage director",
-            "talent acquisition", "people operations",
+            "recruiter", "recruiting", "talent acquisition",
+            "hr coordinator", "hr specialist", "hr generalist",
+            "hiring manager",
+            "executive housekeeper", "housekeeping supervisor",
+            "front office supervisor", "f&b supervisor",
+            "kitchen supervisor", "sous chef",
+            "hr manager",  # último recurso
         ],
         "exclude_companies": [
             "marriott corporate", "hilton corporate", "hyatt corporate",
@@ -102,11 +110,13 @@ INDUSTRY_KEYWORDS = {
             "distribution center worker",
         ],
         "decision_maker_roles": [
-            "warehouse manager", "operations manager", "dc manager",
-            "logistics director", "vp logistics",
-            "hr manager", "hr director",
-            "general manager", "site manager",
-            "talent acquisition", "people operations",
+            "recruiter", "recruiting", "talent acquisition",
+            "hr coordinator", "hr specialist", "hr generalist",
+            "hiring manager", "hiring coordinator",
+            "staffing coordinator", "staffing specialist",
+            "warehouse supervisor", "shift supervisor",
+            "operations supervisor", "logistics coordinator",
+            "hr manager",  # último recurso
         ],
         "exclude_companies": [
             "amazon",  # corporate, no local hire decisions
@@ -135,11 +145,13 @@ INDUSTRY_KEYWORDS = {
             "medical scribe",
         ],
         "decision_maker_roles": [
-            "director of nursing", "don",
-            "hr manager", "hr director",
-            "chief nursing officer", "cno",
-            "talent acquisition healthcare", "nurse recruiter",
-            "people operations", "vp human resources",
+            "recruiter", "recruiting", "nurse recruiter", "talent acquisition",
+            "hr coordinator", "hr specialist", "hr generalist",
+            "hiring manager",
+            "staffing coordinator", "staffing specialist",
+            "nurse supervisor", "charge nurse",
+            "scheduling coordinator",
+            "hr manager",  # último recurso
         ],
         "exclude_companies": [],
     },
@@ -164,10 +176,12 @@ INDUSTRY_KEYWORDS = {
             "tile installer",
         ],
         "decision_maker_roles": [
-            "project manager construction", "operations manager",
-            "general manager", "hr manager",
-            "superintendent", "construction manager",
-            "talent acquisition",
+            "recruiter", "recruiting", "talent acquisition",
+            "hr coordinator", "hr specialist",
+            "hiring manager",
+            "foreman", "superintendent",
+            "project coordinator", "site supervisor",
+            "hr manager",  # último recurso
         ],
         "exclude_companies": [],
     },
@@ -191,10 +205,12 @@ INDUSTRY_KEYWORDS = {
             "fast food crew",
         ],
         "decision_maker_roles": [
-            "restaurant manager", "general manager restaurant",
-            "hr manager", "operations manager",
-            "kitchen manager", "executive chef",
-            "talent acquisition",
+            "recruiter", "recruiting", "talent acquisition",
+            "hr coordinator", "hr specialist",
+            "hiring manager",
+            "kitchen supervisor", "sous chef",
+            "front of house supervisor", "shift supervisor",
+            "restaurant manager",  # solo para independents chicas
         ],
         "exclude_companies": [
             "mcdonalds", "burger king", "starbucks", "subway",
@@ -218,9 +234,12 @@ INDUSTRY_KEYWORDS = {
             "retail supervisor",
         ],
         "decision_maker_roles": [
-            "store manager", "district manager",
-            "hr manager", "operations manager",
-            "talent acquisition retail",
+            "recruiter", "recruiting", "talent acquisition",
+            "hr coordinator", "hr specialist",
+            "hiring manager",
+            "store supervisor", "shift supervisor",
+            "assistant store manager",
+            "store manager",  # último recurso
         ],
         "exclude_companies": [
             "walmart", "target", "home depot", "lowe's", "costco",

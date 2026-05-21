@@ -101,32 +101,33 @@ def find_recruiter_at_domain(domain, cfg):
 
 
 def find_decision_maker_at_domain(domain, cfg, priority_roles=None):
-    """Pipeline B: prioriza roles de DECISION-MAKER (HR Director, Plant Manager,
-    Operations Manager, etc.) — la persona que CONTRATA staffing.
+    """Pipeline B: prioriza recruiters/HR coordinators/supervisores que toman
+    decisiones operacionales de staffing — NO C-suite, NO VPs.
+
+    Lógica: el que maneja staffing day-to-day es quien mira hiring volume,
+    no el CEO. Recruiter + HR Coordinator + Supervisor = sweet spot.
 
     priority_roles: lista de keywords de roles a priorizar (override del default).
     """
     if not priority_roles:
-        # Fallback genérico para Pipeline B
         priority_roles = [
-            "hr manager", "hr director", "human resources",
-            "plant manager", "operations manager", "operations director",
-            "general manager", "vp operations", "vp human resources",
-            "talent acquisition", "people operations", "head of people",
-            "hiring manager",
+            "recruiter", "recruiting", "talent acquisition",
+            "hr coordinator", "hr specialist", "hr generalist",
+            "hiring manager", "staffing coordinator",
+            "supervisor",  # planta level
+            "hr manager",  # último recurso
         ]
 
-    def is_decision_maker(pos, _cfg=cfg):
+    def is_decision_maker(pos):
         if not pos:
             return False
         p = pos.lower()
-        # Exclude junior/non-decision-maker roles
-        exclude = ["intern", "junior", "entry level", "coordinator", "specialist", "associate"]
-        if any(ex in p for ex in exclude):
-            return False
         return any(k.lower() in p for k in priority_roles)
 
-    return _hunter_find_with_role_priority(domain, cfg, priority_roles, role_check_fn=is_decision_maker)
+    return _hunter_find_with_role_priority(
+        domain, cfg, priority_roles,
+        role_check_fn=is_decision_maker,
+    )
 
 
 def _hunter_find_with_role_priority(domain, cfg, priority_roles, role_check_fn):
@@ -160,16 +161,29 @@ def _hunter_find_with_role_priority(domain, cfg, priority_roles, role_check_fn):
 
     def score(e):
         pos = (e.get("position") or "").lower()
+        # Score 0 = priority role (best)
         if role_check_fn(pos):
             return 0
-        # Fallback a roles managerial genéricos
-        if any(k in pos for k in ["director", "manager", "head", "vp", "vice president", "chief"]):
+        # PENALTY: roles over-senior. Estos NO manejan staffing day-to-day.
+        # Los descartamos al final aunque tengamos data.
+        OVER_SENIOR = ["ceo", "chief executive", "chief operating", "coo", "chief",
+                       "president", "vp", "vice president", "founder", "owner"]
+        if any(k in pos for k in OVER_SENIOR):
+            return 9  # worst — descartar si hay alternativa
+        # Score 1 = roles managerial OK (Director, Manager, Lead)
+        if any(k in pos for k in ["director", "manager", "head", "lead"]):
             return 1
+        # Score 2 = cualquier otro role
         return 2
 
     emails_sorted = sorted(emails, key=score)
     best = emails_sorted[0]
     best_score = score(best)
+
+    # Si el mejor todavía es over-senior (score=9), no lo retornamos — mejor sin contact
+    # que con C-suite que no responde
+    if best_score == 9:
+        return {"reason": "only over-senior contacts found (CEO/VP/President) — skipped"}
 
     return {
         "first_name": best.get("first_name", ""),
