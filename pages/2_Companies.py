@@ -273,9 +273,9 @@ if run:
 
     dprogress = st.progress(0, text="...")
     def dcb(i, total, company, domain, source):
-        label = f"{i}/{total} • {str(company)[:30]}"
+        label = f"{i}/{total} • {str(company or '?')[:30]}"
         if domain:
-            label += f" → {domain} [{source}]"
+            label += f" → {domain} [{source or '?'}]"
         dprogress.progress(i / total, text=label[:90])
 
     grouped = enrich_domains_in_dataframe(
@@ -326,9 +326,12 @@ if run:
                 hunter_cache[cache_key] = result
 
             decision_makers.append(result)
-            label = f"{i+1}/{len(grouped)} • {company[:30]}"
+            label = f"{i+1}/{len(grouped)} • {str(company)[:30]}"
             if result.get("email"):
-                label += f" → {result.get('first_name','')} {result.get('last_name','')} ({result.get('position','')[:30]})"
+                fn = result.get("first_name") or ""
+                ln = result.get("last_name") or ""
+                pos = (result.get("position") or "")[:30]
+                label += f" → {fn} {ln} ({pos})"
             hprogress.progress((i + 1) / len(grouped), text=label[:100])
             if not result.get("from_cache") and not result.get("error"):
                 time.sleep(0.1)
