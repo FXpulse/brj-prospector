@@ -27,8 +27,9 @@ from lib.hunter_enrich import (
 )
 
 st.set_page_config(page_title="Job Search - BRJ Prospector", page_icon="🔍", layout="wide")
-st.title("🔍 Job Search")
-st.caption("Busca vacantes en múltiples job boards al mismo tiempo")
+from lib.styling import apply_brand_styles, brand_header
+apply_brand_styles()
+brand_header("🔍 Job Search", "Busca vacantes en múltiples job boards al mismo tiempo")
 
 # ─── Search form ────────────────────────────────────────────────
 with st.form("search_form"):

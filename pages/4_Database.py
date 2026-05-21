@@ -25,8 +25,12 @@ from lib.company_state import (
 )
 
 st.set_page_config(page_title="Database - BRJ Prospector", page_icon="🗄️", layout="wide")
-st.title("🗄️ Database")
-st.caption("Todas las empresas tracked (cross-pipeline) — filtra, edita, exporta")
+from lib.styling import apply_brand_styles, brand_header
+apply_brand_styles()
+brand_header(
+    "🗄️ Database",
+    "Todas las empresas tracked (cross-pipeline) — filtra, edita, exporta",
+)
 
 # Load state
 state = load_state()

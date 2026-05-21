@@ -47,8 +47,12 @@ from lib.company_state import (
 )
 
 st.set_page_config(page_title="Companies (Pipeline B) - BRJ Prospector", page_icon="🏢", layout="wide")
-st.title("🏢 Companies — Empresas que usan staffing")
-st.caption("Detecta empresas con ALTA necesidad de staffing externo basado en volumen + tipo de vacantes")
+from lib.styling import apply_brand_styles, brand_header
+apply_brand_styles()
+brand_header(
+    "🏢 Companies — Empresas que usan staffing",
+    "Detecta empresas con ALTA necesidad de staffing externo basado en volumen + tipo de vacantes",
+)
 
 # ─── Sidebar: stats globales del state ──────────────────────────
 with st.sidebar:

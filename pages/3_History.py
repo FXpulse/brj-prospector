@@ -23,8 +23,12 @@ SCRIPT_DIR = Path(__file__).resolve().parent.parent
 SEARCHES_DIR = SCRIPT_DIR / "data" / "searches"
 
 st.set_page_config(page_title="History - BRJ Prospector", page_icon="📊", layout="wide")
-st.title("📊 History")
-st.caption("Todas las búsquedas guardadas — Pipeline A (Job Search) + Pipeline B (Companies)")
+from lib.styling import apply_brand_styles, brand_header
+apply_brand_styles()
+brand_header(
+    "📊 History",
+    "Todas las búsquedas guardadas — Pipeline A (Job Search) + Pipeline B (Companies)",
+)
 
 
 def parse_filename(filename):

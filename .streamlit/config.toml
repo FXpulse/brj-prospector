@@ -1,0 +1,22 @@
+# BRJ Prospector — theme configuration
+# Editá los colores aca para ajustar el branding global.
+
+[theme]
+# Color principal — navy corporativo, mismo vibe que la web de BRJ
+primaryColor = "#1E4D8C"
+
+# Background blanco limpio
+backgroundColor = "#FFFFFF"
+
+# Sidebar — light gray-blue
+secondaryBackgroundColor = "#F5F7FA"
+
+# Texto principal — dark navy (profesional, alto contraste)
+textColor = "#1A2238"
+
+# Font
+font = "sans serif"
+
+[server]
+# Configuración del server
+headless = true

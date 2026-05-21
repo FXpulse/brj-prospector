@@ -9,6 +9,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lib.company_state import load_state as load_company_state, get_stats as get_company_stats
+from lib.styling import apply_brand_styles, brand_header
 
 try:
     from lib.hunter_enrich import hunter_credits_remaining
@@ -23,9 +24,11 @@ st.set_page_config(
     page_icon="🎯",
     layout="wide",
 )
-
-st.title("🎯 BRJ Prospector")
-st.markdown("Herramienta de prospecting multi-pipeline para **Bilingual Recruiters Jacksonville**")
+apply_brand_styles()
+brand_header(
+    "BRJ Prospector",
+    "Herramienta de prospecting multi-pipeline para Bilingual Recruiters Jacksonville",
+)
 
 # ─── Stats dashboard ────────────────────────────────────────────
 st.divider()
