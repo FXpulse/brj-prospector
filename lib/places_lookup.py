@@ -149,6 +149,13 @@ def enrich_phones_in_dataframe(df, cfg, company_col="company", location_col="loc
         cache[cache_key] = result
         phone = result.get("phone", "")
         phones.append(phone)
+        # Per-tenant usage tracking (counted only on actual API call, not cache hit)
+        if phone:
+            try:
+                from lib.usage import record_usage
+                record_usage("phones", 1)
+            except Exception:
+                pass
 
         if progress_cb:
             progress_cb(i + 1, len(df), company, phone or "(no phone)")

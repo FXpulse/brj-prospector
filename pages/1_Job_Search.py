@@ -170,6 +170,13 @@ if submit:
         st.error("Select at least 1 source.")
         st.stop()
 
+    # Track search run
+    try:
+        from lib.usage import record_usage
+        record_usage("searches", 1)
+    except Exception:
+        pass
+
     st.divider()
 
     with st.status(f"Scraping {len(sources_selected)} sources × {len(locations) or 1} locations...", expanded=True) as status:

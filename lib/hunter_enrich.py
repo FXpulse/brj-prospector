@@ -202,7 +202,7 @@ def _hunter_find_with_role_priority(domain, cfg, priority_roles, role_check_fn):
 
 
 def lookup_with_cache(domain, cfg, credits_state):
-    """Lookup con cache local + tracking de credits."""
+    """Lookup con cache local + tracking de credits (global Hunter + per-tenant)."""
     if not domain:
         return {}
 
@@ -210,7 +210,7 @@ def lookup_with_cache(domain, cfg, credits_state):
     if domain in cache:
         return {**cache[domain], "from_cache": True}
 
-    # Check credits
+    # Check credits (global Hunter limit)
     limit = cfg.get("hunter", {}).get("monthly_limit", 1000)
     if credits_state.get("used", 0) >= limit:
         return {"error": "Hunter monthly limit reached"}
@@ -219,6 +219,12 @@ def lookup_with_cache(domain, cfg, credits_state):
     if not result.get("error"):
         credits_state["used"] = credits_state.get("used", 0) + 1
         save_credits_state(credits_state)
+        # Per-tenant usage tracking (no enforcement aún, solo visibilidad)
+        try:
+            from lib.usage import record_usage
+            record_usage("emails", 1)
+        except Exception:
+            pass  # silent fail si usage tracking no disponible
 
     # Cache (incluso si vacío, para evitar re-query del mismo dominio)
     cache[domain] = result

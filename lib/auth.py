@@ -221,7 +221,7 @@ def require_auth(cfg=None):
 
 
 def render_user_chip(user):
-    """Pequeño chip arriba a la derecha del sidebar mostrando user + logout."""
+    """Sidebar widget: user identity + this month's usage + logout."""
     if not user:
         return
     with st.sidebar:
@@ -232,7 +232,7 @@ def render_user_chip(user):
                 background: #F8FAFC;
                 border-radius: 8px;
                 border-left: 3px solid #10B981;
-                margin-bottom: 16px;
+                margin-bottom: 12px;
                 font-size: 0.85rem;
             ">
                 <div style="font-weight: 600; color: #0F172A;">{user['name']}</div>
@@ -243,6 +243,69 @@ def render_user_chip(user):
             """,
             unsafe_allow_html=True,
         )
+
+        # ── This month's usage panel ───────────────────────────
+        try:
+            from lib.usage import get_usage
+            from lib.tiers import get_tier_config, is_unlimited
+            usage = get_usage(tenant=user["tenant"])
+            tier_cfg = get_tier_config(user["tier"])
+            unlimited = is_unlimited(user["tier"])
+
+            email_used = usage.get("emails", 0)
+            phone_used = usage.get("phones", 0)
+            search_used = usage.get("searches", 0)
+
+            email_limit = "∞" if unlimited else tier_cfg["monthly_emails"]
+            phone_limit = "∞" if unlimited else tier_cfg["monthly_phones"]
+
+            # Progress percentages (only when not unlimited)
+            email_pct = 0 if unlimited else min(100, int(100 * email_used / max(1, tier_cfg["monthly_emails"])))
+            phone_pct = 0 if unlimited else min(100, int(100 * phone_used / max(1, tier_cfg["monthly_phones"])))
+
+            # Color cue: green < 60%, amber 60-90%, red > 90%
+            def _bar_color(pct):
+                if unlimited or pct < 60:
+                    return "#10B981"
+                if pct < 90:
+                    return "#F59E0B"
+                return "#DC2626"
+
+            st.markdown(
+                f"""
+                <div style="
+                    padding: 10px 14px;
+                    background: #FFFFFF;
+                    border: 1px solid #E2E8F0;
+                    border-radius: 8px;
+                    margin-bottom: 12px;
+                    font-size: 0.78rem;
+                ">
+                    <div style="color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.65rem; margin-bottom: 8px;">
+                        This month
+                    </div>
+                    <div style="display: flex; justify-content: space-between; color: #0F172A; margin-bottom: 4px;">
+                        <span>📧 Emails</span><span style="font-weight: 600;">{email_used} / {email_limit}</span>
+                    </div>
+                    <div style="background: #F1F5F9; height: 4px; border-radius: 2px; margin-bottom: 10px; overflow: hidden;">
+                        <div style="background: {_bar_color(email_pct)}; height: 100%; width: {email_pct if not unlimited else 5}%;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; color: #0F172A; margin-bottom: 4px;">
+                        <span>📞 Phones</span><span style="font-weight: 600;">{phone_used} / {phone_limit}</span>
+                    </div>
+                    <div style="background: #F1F5F9; height: 4px; border-radius: 2px; margin-bottom: 10px; overflow: hidden;">
+                        <div style="background: {_bar_color(phone_pct)}; height: 100%; width: {phone_pct if not unlimited else 5}%;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; color: #64748B; font-size: 0.72rem;">
+                        <span>🔍 Searches</span><span>{search_used}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        except Exception:
+            pass  # silent fail if usage module not available
+
         if user.get("authenticator"):
             try:
                 user["authenticator"].logout(
@@ -250,5 +313,4 @@ def render_user_chip(user):
                     location="sidebar",
                 )
             except TypeError:
-                # versión anterior
                 user["authenticator"].logout("Sign out", "sidebar")

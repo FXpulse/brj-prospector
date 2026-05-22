@@ -195,6 +195,13 @@ if run:
         st.error("Add at least 1 location.")
         st.stop()
 
+    # Track search run
+    try:
+        from lib.usage import record_usage
+        record_usage("searches", 1)
+    except Exception:
+        pass
+
     st.divider()
 
     total_runs = len(queries) * len(locations) * len(sources)
@@ -367,6 +374,12 @@ if run:
                 result = find_decision_maker_at_domain(domain, cfg, priority_roles=priority_roles)
                 if not result.get("error"):
                     credits_state["used"] = credits_state.get("used", 0) + 1
+                    # Per-tenant usage tracking
+                    try:
+                        from lib.usage import record_usage
+                        record_usage("emails", 1)
+                    except Exception:
+                        pass
                 hunter_cache[cache_key] = result
 
             decision_makers.append(result)
