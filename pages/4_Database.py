@@ -254,7 +254,7 @@ if selected:
             st.write(f"**Email**: {dm.get('email', '')}")
             st.write(f"**Priority role**: {'✓' if dm.get('is_priority_role') else '✗'}")
             if dm.get("confidence"):
-                st.write(f"**Hunter confidence**: {dm['confidence']}")
+                st.write(f"**Email confidence**: {dm['confidence']}")
         else:
             st.write("_No decision-maker contact_")
 

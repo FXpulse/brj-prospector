@@ -13,11 +13,6 @@ from lib.styling import apply_brand_styles, brand_header
 from lib.auth import require_auth, render_user_chip
 from lib.paths import get_tenant_searches_dir
 
-try:
-    from lib.hunter_enrich import hunter_credits_remaining
-except Exception:
-    hunter_credits_remaining = None
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 st.set_page_config(
@@ -56,14 +51,6 @@ if searches_dir.exists():
         elif f.name.startswith("companies_"):
             companies_searches += 1
 
-hunter_remaining = None
-hunter_total = 1000
-if hunter_credits_remaining:
-    try:
-        hunter_remaining = hunter_credits_remaining()
-    except Exception:
-        hunter_remaining = None
-
 # Top row — companies
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Companies tracked", company_stats["total_companies"])
@@ -71,16 +58,11 @@ c2.metric("Contacted", company_stats["contacted"])
 c3.metric("Pending outreach", company_stats["in_db_not_contacted"])
 c4.metric("With DM contact", company_stats["with_decision_maker"])
 
-# Bottom row — activity + capacity
-c5, c6, c7, c8 = st.columns(4)
+# Bottom row — activity
+c5, c6, c7 = st.columns(3)
 c5.metric("Total runs", total_searches)
 c6.metric("Job Search runs", job_searches)
 c7.metric("Companies runs", companies_searches)
-if hunter_remaining is not None:
-    used = max(0, hunter_total - hunter_remaining)
-    c8.metric("Hunter credits remaining", f"{hunter_remaining}/{hunter_total}", delta=-used, delta_color="off")
-else:
-    c8.metric("Hunter credits", "—")
 
 # ─── Quick actions ──────────────────────────────────────────────
 st.divider()

@@ -148,43 +148,18 @@ with st.expander(f"📋 View the {len(queries)} queries that will run for {indus
         cols[i % 3].write(f"• {q}")
 
 # ─── Options + Run ──────────────────────────────────────────────
-# Detect which providers are configured
+# Auto-pick enrichment provider — Apollo if configured, fallback to Hunter
 try:
     _cfg_check = load_hunter_config()
-    _apollo_available = is_apollo_configured(_cfg_check)
+    using_apollo = is_apollo_configured(_cfg_check)
 except Exception:
-    _apollo_available = False
+    using_apollo = False
 
-provider_options = []
-if _apollo_available:
-    provider_options.append("Apollo (recommended)")
-provider_options.append("Hunter")
-
-col_provider, col_enrich, col_max, col_run = st.columns([2, 2, 1, 1])
-with col_provider:
-    provider = st.radio(
-        "Enrichment provider",
-        options=provider_options,
-        horizontal=True,
-        help="Apollo: better data quality + supports phones in future. Hunter: pattern-matched emails.",
-    )
-    using_apollo = provider.startswith("Apollo")
-
+col_enrich, col_max, col_run = st.columns([3, 1, 1])
 with col_enrich:
-    try:
-        credits = hunter_credits_remaining()
-    except Exception:
-        credits = 0
-    if using_apollo:
-        provider_label = "🎯 Apollo HR enrichment (decision-maker lookup)"
-        disabled_state = False
-    else:
-        provider_label = f"🎯 Hunter HR enrichment (decision-maker lookup) — {credits} credits"
-        disabled_state = credits <= 0
     enrich_hunter = st.checkbox(
-        provider_label,
+        "🎯 Find HR decision-makers (email enrichment)",
         value=True,
-        disabled=disabled_state,
         help="Searches for HR Director / Plant Manager / Operations on each company. Cache prevents re-queries.",
     )
 with col_max:
@@ -368,12 +343,10 @@ if run:
     phones_found = sum(1 for p in grouped.get("company_phone", []) if p)
     st.success(f"✓ Phones: {phones_found}/{len(grouped)} found via Google Places")
 
-    # Step 5: HR enrichment (Apollo or Hunter)
+    # Step 5: HR enrichment (provider auto-selected)
     if enrich_hunter and domains_found > 0:
         st.divider()
-        provider_emoji = "🚀" if using_apollo else "🎯"
-        provider_name = "Apollo" if using_apollo else "Hunter"
-        st.subheader(f"{provider_emoji} {provider_name} — searching HR decision-makers")
+        st.subheader("🎯 Searching HR decision-makers")
 
         priority_roles = get_decision_maker_roles(industry)
         st.caption(f"Prioritizing roles for {industry}: {', '.join(priority_roles[:5])}…")
@@ -465,7 +438,7 @@ if run:
                 f"Email hello@theprospector.io to request a top-up, or wait until next month."
             )
 
-        st.success(f"✓ Hunter: {with_dm}/{len(grouped)} with decision-maker, {priority_dm} in priority role (HR/Ops/GM)")
+        st.success(f"✓ Enrichment complete: {with_dm}/{len(grouped)} with decision-maker, {priority_dm} in priority role (HR/Ops/GM)")
 
     # ─── State sync — classify companies: NEW / IN_DB / CONTACTED ───
     company_state = load_company_state()
@@ -545,7 +518,7 @@ if run:
             "dm_first_name": st.column_config.TextColumn("Decision-maker name"),
             "dm_position": st.column_config.TextColumn("Position"),
             "dm_email": st.column_config.TextColumn("Email"),
-            "dm_phone": st.column_config.TextColumn("📱 DM direct phone", help="Decision-maker direct phone (rare — Hunter only returns it sometimes)"),
+            "dm_phone": st.column_config.TextColumn("📱 DM direct phone", help="Decision-maker direct phone (when available)"),
             "dm_is_priority_role": st.column_config.CheckboxColumn("Priority role"),
             "company_url": st.column_config.LinkColumn("Indeed/JB"),
         },

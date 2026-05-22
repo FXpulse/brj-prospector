@@ -121,20 +121,18 @@ with st.form("search_form"):
         exclude_staffing = st.checkbox(
             "🚫 Exclude staffing agencies",
             value=True,
-            help="Filters competitors (Adecco, Robert Half, etc. + any company with 'staffing', 'recruiting' in the name). Protects Hunter credits.",
+            help="Filters competitors (Adecco, Robert Half, etc. + any company with 'staffing', 'recruiting' in the name). Saves enrichment credits.",
         )
     with col_hunter:
         try:
             credits_remaining = hunter_credits_remaining()
-            hunter_label = f"Hunter enrich (recruiter lookup) — {credits_remaining} credits left"
         except Exception:
             credits_remaining = 0
-            hunter_label = "Hunter enrich (recruiter lookup) — config error"
         enrich_with_hunter = st.checkbox(
-            hunter_label,
+            "🎯 Find recruiter contacts (email enrichment)",
             value=False,
             disabled=credits_remaining <= 0,
-            help="Finds each company's recruiter/HR via Hunter.io. Prioritizes roles: Recruiter, HR Manager, Talent Acquisition.",
+            help="Finds each company's recruiter/HR contact. Prioritizes roles: Recruiter, HR Manager, Talent Acquisition.",
         )
     with col_run:
         st.markdown("&nbsp;")
@@ -239,7 +237,7 @@ if submit:
             before = len(df_display)
             df_display, excluded_count, sample_names = filter_out_staffing_companies(df_display, kw_list, name_list)
             if excluded_count > 0:
-                with st.expander(f"🚫 Excluded {excluded_count} staffing agencies (no Hunter credits spent)"):
+                with st.expander(f"🚫 Excluded {excluded_count} staffing agencies (no enrichment credits spent)"):
                     st.caption("Filtered companies:")
                     for name in sample_names:
                         st.write(f"  • {name}")
@@ -304,10 +302,10 @@ if submit:
     if not google_cse_configured:
         st.info("💡 Tip: configuring Google CSE in config.json boosts domain coverage 30→70%. Free 100 queries/day.")
 
-    # ─── Hunter enrichment ─────────────────────────────────────
+    # ─── Recruiter enrichment ─────────────────────────────────────
     if enrich_with_hunter:
         st.divider()
-        st.subheader("🎯 Hunter Enrichment — searching for recruiters")
+        st.subheader("🎯 Searching for recruiters")
 
         # Solo dominios únicos
         domains_with_url = df_display["company_domain"].dropna().nunique() if "company_domain" in df_display.columns else 0
@@ -336,10 +334,10 @@ if submit:
             # Stats
             enriched = sum(1 for x in df_display.get("recruiter_email", []) if x)
             priority = sum(1 for x in df_display.get("recruiter_is_priority", []) if x)
-            st.success(f"✓ Hunter enrichment complete: {enriched}/{len(df_display)} with contact, {priority} with priority role (recruiter/HR)")
+            st.success(f"✓ Enrichment complete: {enriched}/{len(df_display)} with contact, {priority} with priority role (recruiter/HR)")
         except Exception as e:
             progress.empty()
-            st.error(f"Hunter enrichment error: {e}")
+            st.error(f"Enrichment error: {e}")
             st.exception(e)
 
     # ─── Display table ──────────────────────────────────────────
