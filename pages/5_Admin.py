@@ -21,7 +21,7 @@ st.set_page_config(page_title="Admin - SCM Prospector", page_icon="🛡️", lay
 from lib.styling import apply_brand_styles, brand_header
 from lib.auth import require_auth, render_user_chip
 from lib.tiers import TIERS, get_tier_config
-from lib.usage import list_all_tenants_usage, get_usage_history
+from lib.usage import list_all_tenants_usage, get_usage_history, grant_credits, get_grants_log, get_usage
 from lib.paths import CLIENTS_DIR, SHARED_DIR, DATA_DIR
 from lib.config_loader import load_config
 
@@ -146,6 +146,69 @@ else:
                 st.write(f"**Total folder size**: {round(folder_size_mb, 2)} MB")
             else:
                 st.caption("Folder does not exist yet.")
+
+
+# ─── Section 1b: Grant credits (manual top-up) ──────────────────
+st.divider()
+st.subheader("💳 Grant credits — manual top-up")
+
+with st.form("grant_credits_form", clear_on_submit=True):
+    st.caption(
+        "Grant bonus credits to a tenant for this month. Use when a customer requests a "
+        "top-up between billing cycles. Bonus credits add ON TOP of tier limits."
+    )
+    col_t, col_res, col_n, col_btn = st.columns([2, 1, 1, 1])
+
+    with col_t:
+        # Build tenant options from auth config + existing data folders
+        auth_tenants = sorted(set(
+            (data.get("tenant") or "default")
+            for data in (auth_cfg.get("users") or {}).values()
+        ))
+        data_tenants = sorted([d.name for d in CLIENTS_DIR.iterdir() if d.is_dir() and not d.name.startswith("_")]) if CLIENTS_DIR.exists() else []
+        tenant_options = sorted(set(auth_tenants) | set(data_tenants))
+        grant_tenant = st.selectbox("Tenant", options=tenant_options or ["(no tenants)"])
+    with col_res:
+        grant_resource = st.selectbox("Resource", options=["emails", "phones"])
+    with col_n:
+        grant_count = st.number_input("Amount", min_value=1, max_value=10000, value=500, step=100)
+    with col_btn:
+        st.markdown("&nbsp;")
+        grant_submit = st.form_submit_button("➕ Grant", type="primary", use_container_width=True)
+
+    grant_reason = st.text_input(
+        "Reason (audit trail)",
+        placeholder="ex: BRJ requested top-up — extra Manufacturing campaign",
+    )
+
+    if grant_submit and grant_tenant and grant_tenant != "(no tenants)":
+        try:
+            grant_credits(
+                tenant=grant_tenant,
+                resource=grant_resource,
+                count=int(grant_count),
+                granted_by=user["email"],
+                reason=grant_reason.strip(),
+            )
+            st.success(
+                f"✓ Granted {grant_count} bonus {grant_resource} to **{grant_tenant.upper()}** "
+                f"for this month. Refresh to see updated usage."
+            )
+        except Exception as e:
+            st.error(f"Failed to grant: {e}")
+
+# Show recent grants log for the selected tenant
+if tenant_options:
+    with st.expander(f"📋 Grants audit log — {grant_tenant.upper() if 'grant_tenant' in dir() and grant_tenant else '(select tenant first)'}"):
+        if 'grant_tenant' in dir() and grant_tenant and grant_tenant != "(no tenants)":
+            grants_log = get_grants_log(tenant=grant_tenant)
+            if grants_log:
+                log_df = pd.DataFrame(grants_log)
+                st.dataframe(log_df, use_container_width=True, hide_index=True)
+            else:
+                st.caption("No grants this month.")
+        else:
+            st.caption("Select a tenant first.")
 
 
 # ─── Section 2: User Management ─────────────────────────────────

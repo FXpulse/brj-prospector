@@ -145,11 +145,23 @@ def enrich_phones_in_dataframe(df, cfg, company_col="company", location_col="loc
         loc_clean = str(location).split(",")[0:2] if location else []
         loc_str = " ".join([s.strip() for s in loc_clean]).strip()
 
+        # Per-tenant tier limit check (skip silently if exhausted)
+        try:
+            from lib.usage import can_consume
+            from lib.paths import get_current_tier
+            tier = get_current_tier()
+            if not can_consume("phones", tier, 1):
+                phones.append("")
+                if progress_cb:
+                    progress_cb(i + 1, len(df), company, "(tier limit reached)")
+                continue
+        except Exception:
+            pass
+
         result = search_company_in_places(company, loc_str, cfg)
         cache[cache_key] = result
         phone = result.get("phone", "")
         phones.append(phone)
-        # Per-tenant usage tracking (counted only on actual API call, not cache hit)
         if phone:
             try:
                 from lib.usage import record_usage

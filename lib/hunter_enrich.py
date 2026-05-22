@@ -202,7 +202,7 @@ def _hunter_find_with_role_priority(domain, cfg, priority_roles, role_check_fn):
 
 
 def lookup_with_cache(domain, cfg, credits_state):
-    """Lookup con cache local + tracking de credits (global Hunter + per-tenant)."""
+    """Lookup con cache local + global Hunter limit + per-tenant tier enforcement."""
     if not domain:
         return {}
 
@@ -210,26 +210,33 @@ def lookup_with_cache(domain, cfg, credits_state):
     if domain in cache:
         return {**cache[domain], "from_cache": True}
 
-    # Check credits (global Hunter limit)
+    # Check global Hunter limit (la cuota total del API)
     limit = cfg.get("hunter", {}).get("monthly_limit", 1000)
     if credits_state.get("used", 0) >= limit:
         return {"error": "Hunter monthly limit reached"}
+
+    # Check per-tenant tier limit (Starter / Pro / Custom)
+    try:
+        from lib.usage import can_consume
+        from lib.paths import get_current_tier
+        tier = get_current_tier()
+        if not can_consume("emails", tier, 1):
+            return {"error": "tier_limit_reached", "resource": "emails"}
+    except Exception:
+        pass  # si falla, no bloquear
 
     result = find_recruiter_at_domain(domain, cfg)
     if not result.get("error"):
         credits_state["used"] = credits_state.get("used", 0) + 1
         save_credits_state(credits_state)
-        # Per-tenant usage tracking (no enforcement aún, solo visibilidad)
         try:
             from lib.usage import record_usage
             record_usage("emails", 1)
         except Exception:
-            pass  # silent fail si usage tracking no disponible
+            pass
 
-    # Cache (incluso si vacío, para evitar re-query del mismo dominio)
     cache[domain] = result
     _save_json(CACHE_FILE, cache)
-
     return result
 
 

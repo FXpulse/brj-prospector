@@ -368,13 +368,21 @@ if run:
             if cache_key in hunter_cache:
                 result = {**hunter_cache[cache_key], "from_cache": True}
             else:
+                # Global Hunter API limit check
                 if credits_state.get("used", 0) >= cfg.get("hunter", {}).get("monthly_limit", 1000):
                     decision_makers.append({"error": "credits exhausted"})
                     continue
+                # Per-tenant tier limit check
+                try:
+                    from lib.usage import can_consume
+                    if not can_consume("emails", user["tier"], 1, tenant=user["tenant"]):
+                        decision_makers.append({"error": "tier_limit_reached"})
+                        continue
+                except Exception:
+                    pass
                 result = find_decision_maker_at_domain(domain, cfg, priority_roles=priority_roles)
                 if not result.get("error"):
                     credits_state["used"] = credits_state.get("used", 0) + 1
-                    # Per-tenant usage tracking
                     try:
                         from lib.usage import record_usage
                         record_usage("emails", 1)
@@ -407,6 +415,15 @@ if run:
         hprogress.empty()
         with_dm = sum(1 for d in decision_makers if d.get("email"))
         priority_dm = sum(1 for d in decision_makers if d.get("is_priority_role"))
+        blocked_by_tier = sum(1 for d in decision_makers if d.get("error") == "tier_limit_reached")
+
+        if blocked_by_tier > 0:
+            st.warning(
+                f"⚠️ **Tier limit reached** — {blocked_by_tier} companies were not enriched because "
+                f"your {user['tier'].upper()} tier email quota is exhausted this month. "
+                f"Email hello@theprospector.io to request a top-up, or wait until next month."
+            )
+
         st.success(f"✓ Hunter: {with_dm}/{len(grouped)} with decision-maker, {priority_dm} in priority role (HR/Ops/GM)")
 
     # ─── State sync — classify companies: NEW / IN_DB / CONTACTED ───

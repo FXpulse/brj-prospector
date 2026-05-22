@@ -255,21 +255,28 @@ def render_user_chip(user):
             email_used = usage.get("emails", 0)
             phone_used = usage.get("phones", 0)
             search_used = usage.get("searches", 0)
+            email_bonus = usage.get("bonus_emails", 0)
+            phone_bonus = usage.get("bonus_phones", 0)
 
-            email_limit = "∞" if unlimited else tier_cfg["monthly_emails"]
-            phone_limit = "∞" if unlimited else tier_cfg["monthly_phones"]
+            email_cap = tier_cfg["monthly_emails"] + email_bonus
+            phone_cap = tier_cfg["monthly_phones"] + phone_bonus
 
-            # Progress percentages (only when not unlimited)
-            email_pct = 0 if unlimited else min(100, int(100 * email_used / max(1, tier_cfg["monthly_emails"])))
-            phone_pct = 0 if unlimited else min(100, int(100 * phone_used / max(1, tier_cfg["monthly_phones"])))
+            email_limit = "∞" if unlimited else email_cap
+            phone_limit = "∞" if unlimited else phone_cap
 
-            # Color cue: green < 60%, amber 60-90%, red > 90%
+            email_pct = 0 if unlimited else min(100, int(100 * email_used / max(1, email_cap)))
+            phone_pct = 0 if unlimited else min(100, int(100 * phone_used / max(1, phone_cap)))
+
             def _bar_color(pct):
                 if unlimited or pct < 60:
                     return "#10B981"
                 if pct < 90:
                     return "#F59E0B"
                 return "#DC2626"
+
+            bonus_note = ""
+            if email_bonus or phone_bonus:
+                bonus_note = f"<div style='font-size: 0.65rem; color: #10B981; margin-top: 4px;'>✨ Bonus credits granted: {email_bonus}em + {phone_bonus}ph</div>"
 
             st.markdown(
                 f"""
@@ -299,10 +306,42 @@ def render_user_chip(user):
                     <div style="display: flex; justify-content: space-between; color: #64748B; font-size: 0.72rem;">
                         <span>🔍 Searches</span><span>{search_used}</span>
                     </div>
+                    {bonus_note}
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+
+            # ── Top-up CTA cuando usage >= 80% ─────────────────
+            near_limit = (not unlimited) and (email_pct >= 80 or phone_pct >= 80)
+            if near_limit:
+                if user["tier"] == "admin":
+                    cta_label = "💳 Grant credits → Admin panel"
+                    cta_help = "You're admin. Use the Admin panel to grant bonus credits."
+                else:
+                    cta_label = "✉️ Request top-up"
+                    cta_help = "Email hello@theprospector.io to request more credits this month."
+                st.markdown(
+                    f"""
+                    <a href="mailto:hello@theprospector.io?subject=Top-up request — {user['tenant']}&body=Hi, I'd like to request additional credits for my SCM Prospector account ({user['tenant']}, {user['tier']} tier). Please advise on top-up options."
+                       style="
+                           display: block;
+                           text-align: center;
+                           background: #FEF3C7;
+                           border: 1px solid #F59E0B;
+                           color: #92400E;
+                           padding: 8px 12px;
+                           border-radius: 6px;
+                           text-decoration: none;
+                           font-size: 0.78rem;
+                           font-weight: 600;
+                           margin-bottom: 12px;
+                       ">
+                        {cta_label}
+                    </a>
+                    """,
+                    unsafe_allow_html=True,
+                )
         except Exception:
             pass  # silent fail if usage module not available
 

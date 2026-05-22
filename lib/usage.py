@@ -99,13 +99,16 @@ def record_usage(resource, count=1, tenant=None):
 def get_remaining(resource, tier, tenant=None, month=None):
     """Devuelve cuántos del recurso quedan este mes para este tenant + tier.
 
+    Factor in: bonus credits granted by admin (manual top-up).
     Devuelve None si tier es unlimited.
     """
     if is_unlimited(tier):
         return None
     limit = get_tier_limit(tier, resource)
-    used = get_usage(tenant, month).get(resource, 0)
-    return max(0, limit - used)
+    usage = get_usage(tenant, month)
+    used = usage.get(resource, 0)
+    bonus = usage.get(f"bonus_{resource}", 0)
+    return max(0, limit + bonus - used)
 
 
 def can_consume(resource, tier, count=1, tenant=None) -> bool:
@@ -114,6 +117,49 @@ def can_consume(resource, tier, count=1, tenant=None) -> bool:
         return True
     remaining = get_remaining(resource, tier, tenant)
     return remaining is None or remaining >= count
+
+
+def grant_credits(tenant, resource, count, month=None, granted_by="admin", reason=""):
+    """Admin grants bonus credits a un tenant para el mes actual.
+
+    Stored como bonus_emails / bonus_phones en el usage del mes.
+    """
+    if month is None:
+        month = _current_month()
+    all_usage = _load_usage(tenant)
+    monthly = all_usage.get(month, {
+        "emails": 0,
+        "phones": 0,
+        "searches": 0,
+        "first_use": _now_iso(),
+        "last_use": _now_iso(),
+    })
+    bonus_key = f"bonus_{resource}"
+    monthly[bonus_key] = monthly.get(bonus_key, 0) + count
+
+    # Audit trail: log of grants
+    grants = monthly.get("grants", [])
+    grants.append({
+        "at": _now_iso(),
+        "resource": resource,
+        "count": count,
+        "by": granted_by,
+        "reason": reason or "—",
+    })
+    monthly["grants"] = grants
+
+    all_usage[month] = monthly
+    _save_usage(tenant, all_usage)
+    return monthly
+
+
+def get_grants_log(tenant=None, month=None):
+    """Devuelve el audit log de grants del mes."""
+    if tenant is None:
+        tenant = get_current_tenant()
+    if month is None:
+        month = _current_month()
+    return _load_usage(tenant).get(month, {}).get("grants", [])
 
 
 def get_usage_history(tenant=None, months=6):
