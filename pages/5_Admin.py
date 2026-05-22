@@ -268,8 +268,19 @@ col2.metric("Google CSE", "✓ Active" if has_cse else "⚠️ Not configured")
 has_ghl = bool(cfg.get("ghl", {}).get("pit", "").startswith("pit-"))
 col3.metric("GHL API", "✓ Active" if has_ghl else "⚠️ Not configured")
 
-# Apollo (placeholder — pending TOS verification + integration)
-col4.metric("Apollo API", "🚧 Pending", delta="TOS check in progress")
+# Apollo
+try:
+    from lib.apollo_enrich import is_apollo_configured
+    apollo_ok = is_apollo_configured(cfg)
+except Exception:
+    apollo_ok = False
+apollo_limit = (cfg.get("apollo", {}) or {}).get("monthly_limit", 2500)
+col4.metric(
+    "Apollo API",
+    "✓ Active" if apollo_ok else "⚠️ Not configured",
+    delta=f"{apollo_limit} credits/mo" if apollo_ok else None,
+    delta_color="off",
+)
 
 # Data folder sizes
 st.divider()

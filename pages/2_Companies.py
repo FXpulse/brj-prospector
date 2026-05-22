@@ -38,6 +38,10 @@ from lib.places_lookup import enrich_phones_in_dataframe
 from lib.hunter_enrich import find_decision_maker_at_domain, hunter_credits_remaining, load_config as load_hunter_config
 from lib.hunter_enrich import _load_json as _hunter_load_cache, _save_json as _hunter_save_cache, CACHE_FILE as HUNTER_CACHE_FILE
 from lib.hunter_enrich import load_credits_state, save_credits_state
+from lib.apollo_enrich import (
+    find_decision_maker_at_domain as apollo_find_dm,
+    is_apollo_configured,
+)
 from lib.company_state import (
     load_state as load_company_state,
     save_state as save_company_state,
@@ -144,17 +148,44 @@ with st.expander(f"📋 View the {len(queries)} queries that will run for {indus
         cols[i % 3].write(f"• {q}")
 
 # ─── Options + Run ──────────────────────────────────────────────
-col_hunter, col_max, col_run = st.columns([2, 1, 1])
-with col_hunter:
+# Detect which providers are configured
+try:
+    _cfg_check = load_hunter_config()
+    _apollo_available = is_apollo_configured(_cfg_check)
+except Exception:
+    _apollo_available = False
+
+provider_options = []
+if _apollo_available:
+    provider_options.append("Apollo (recommended)")
+provider_options.append("Hunter")
+
+col_provider, col_enrich, col_max, col_run = st.columns([2, 2, 1, 1])
+with col_provider:
+    provider = st.radio(
+        "Enrichment provider",
+        options=provider_options,
+        horizontal=True,
+        help="Apollo: better data quality + supports phones in future. Hunter: pattern-matched emails.",
+    )
+    using_apollo = provider.startswith("Apollo")
+
+with col_enrich:
     try:
         credits = hunter_credits_remaining()
     except Exception:
         credits = 0
+    if using_apollo:
+        provider_label = "🎯 Apollo HR enrichment (decision-maker lookup)"
+        disabled_state = False
+    else:
+        provider_label = f"🎯 Hunter HR enrichment (decision-maker lookup) — {credits} credits"
+        disabled_state = credits <= 0
     enrich_hunter = st.checkbox(
-        f"🎯 Hunter HR enrichment (decision-maker lookup) — {credits} credits",
+        provider_label,
         value=True,
-        disabled=credits <= 0,
-        help="Searches for HR Director / Plant Manager / Operations at the end, only on companies with >= min_vacancies. Cache prevents re-queries.",
+        disabled=disabled_state,
+        help="Searches for HR Director / Plant Manager / Operations on each company. Cache prevents re-queries.",
     )
 with col_max:
     max_per_query = st.number_input("Max per query", min_value=10, max_value=100, value=30, step=10)
@@ -337,10 +368,12 @@ if run:
     phones_found = sum(1 for p in grouped.get("company_phone", []) if p)
     st.success(f"✓ Phones: {phones_found}/{len(grouped)} found via Google Places")
 
-    # Step 5: Hunter HR enrichment
+    # Step 5: HR enrichment (Apollo or Hunter)
     if enrich_hunter and domains_found > 0:
         st.divider()
-        st.subheader("🎯 Hunter — searching HR decision-makers")
+        provider_emoji = "🚀" if using_apollo else "🎯"
+        provider_name = "Apollo" if using_apollo else "Hunter"
+        st.subheader(f"{provider_emoji} {provider_name} — searching HR decision-makers")
 
         priority_roles = get_decision_maker_roles(industry)
         st.caption(f"Prioritizing roles for {industry}: {', '.join(priority_roles[:5])}…")
@@ -364,15 +397,11 @@ if run:
                 hprogress.progress((i + 1) / len(grouped), text=f"{i+1}/{len(grouped)} • {company[:30]} • (no domain)")
                 continue
 
-            cache_key = f"{domain}__pipelineB"
+            cache_key = f"{domain}__pipelineB__{'apollo' if using_apollo else 'hunter'}"
             if cache_key in hunter_cache:
                 result = {**hunter_cache[cache_key], "from_cache": True}
             else:
-                # Global Hunter API limit check
-                if credits_state.get("used", 0) >= cfg.get("hunter", {}).get("monthly_limit", 1000):
-                    decision_makers.append({"error": "credits exhausted"})
-                    continue
-                # Per-tenant tier limit check
+                # Per-tenant tier limit check (applies regardless of provider)
                 try:
                     from lib.usage import can_consume
                     if not can_consume("emails", user["tier"], 1, tenant=user["tenant"]):
@@ -380,9 +409,21 @@ if run:
                         continue
                 except Exception:
                     pass
-                result = find_decision_maker_at_domain(domain, cfg, priority_roles=priority_roles)
+
+                if using_apollo:
+                    # Apollo path
+                    result = apollo_find_dm(domain, cfg, priority_roles=priority_roles)
+                else:
+                    # Hunter path — also enforce global Hunter limit
+                    if credits_state.get("used", 0) >= cfg.get("hunter", {}).get("monthly_limit", 1000):
+                        decision_makers.append({"error": "credits exhausted"})
+                        continue
+                    result = find_decision_maker_at_domain(domain, cfg, priority_roles=priority_roles)
+                    if not result.get("error"):
+                        credits_state["used"] = credits_state.get("used", 0) + 1
+
+                # Track per-tenant usage (any provider success)
                 if not result.get("error"):
-                    credits_state["used"] = credits_state.get("used", 0) + 1
                     try:
                         from lib.usage import record_usage
                         record_usage("emails", 1)

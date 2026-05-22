@@ -12,6 +12,11 @@
     "api_key": "PASTE_HUNTER_API_KEY",
     "monthly_limit": 1000
   },
+  "apollo": {
+    "_comment": "Apollo.io API. Basic plan $69/mo, 2,500 credits (1 per email, 8 per phone). Settings → Integrations → API en apollo.io.",
+    "api_key": "PASTE_APOLLO_API_KEY",
+    "monthly_limit": 2500
+  },
   "google_cse": {
     "_comment": "Google Custom Search Engine. Setup: console.cloud.google.com → enable Custom Search API + programmablesearchengine.google.com.",
     "api_key": "PASTE_GOOGLE_API_KEY",
