@@ -126,28 +126,5 @@ st.markdown(
 """
 )
 
-# ─── Status indicators ──────────────────────────────────────────
 st.divider()
-st.subheader("⚙️ System")
-
-try:
-    from lib.config_loader import load_config
-    cfg = load_config()
-    has_hunter = bool(cfg.get("hunter", {}).get("api_key", "").strip() and not cfg.get("hunter", {}).get("api_key", "").startswith("PASTE"))
-    has_cse = bool(cfg.get("google_cse", {}).get("cse_id", "").strip() and not cfg.get("google_cse", {}).get("cse_id", "").startswith("PASTE"))
-except Exception:
-    has_hunter = False
-    has_cse = False
-
-c1, c2, c3 = st.columns(3)
-c1.metric("Hunter API", "✓ Active" if has_hunter else "⚠️ Not configured")
-c2.metric("Google CSE", "✓ Active" if has_cse else "⚠️ Not configured")
-c3.metric("Streamlit", f"Streamlit {st.__version__}")
-
-if not has_hunter or not has_cse:
-    st.warning(
-        "Missing credentials. Configure `config.json` (local) or Streamlit Secrets (cloud). "
-        "See README for full setup."
-    )
-
 st.caption(f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} · SCM Prospector · powered by Social Click Media")
