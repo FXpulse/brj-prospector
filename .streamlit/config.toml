@@ -1,22 +1,21 @@
-# BRJ Prospector — theme configuration
-# Editá los colores aca para ajustar el branding global.
+# SCM Prospector — theme configuration
+# Paleta: charcoal + emerald. Vibe Linear/Notion B2B SaaS.
 
 [theme]
-# Color principal — navy corporativo, mismo vibe que la web de BRJ
-primaryColor = "#1E4D8C"
+# Color principal — emerald accent (CTAs)
+primaryColor = "#10B981"
 
-# Background blanco limpio
+# Background blanco
 backgroundColor = "#FFFFFF"
 
-# Sidebar — light gray-blue
-secondaryBackgroundColor = "#F5F7FA"
+# Sidebar — slate-50
+secondaryBackgroundColor = "#F8FAFC"
 
-# Texto principal — dark navy (profesional, alto contraste)
-textColor = "#1A2238"
+# Texto principal — charcoal
+textColor = "#0F172A"
 
 # Font
 font = "sans serif"
 
 [server]
-# Configuración del server
 headless = true

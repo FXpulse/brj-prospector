@@ -47,31 +47,34 @@ from lib.company_state import (
     get_stats as get_company_stats,
 )
 
-st.set_page_config(page_title="Companies (Pipeline B) - BRJ Prospector", page_icon="🏢", layout="wide")
+st.set_page_config(page_title="Companies (Pipeline B) - SCM Prospector", page_icon="🏢", layout="wide")
 from lib.styling import apply_brand_styles, brand_header
+from lib.auth import require_auth, render_user_chip
 apply_brand_styles()
+user = require_auth()
+render_user_chip(user)
 brand_header(
-    "🏢 Companies — Empresas que usan staffing",
-    "Detecta empresas con ALTA necesidad de staffing externo basado en volumen + tipo de vacantes",
+    "🏢 Companies — Find companies that use staffing",
+    "Detects companies with HIGH external staffing demand based on vacancy volume + type",
 )
 
-# ─── Sidebar: stats globales del state ──────────────────────────
+# ─── Sidebar: global stats ──────────────────────────────────────
 with st.sidebar:
-    st.header("📊 Database global")
+    st.header("📊 Global database")
     cs = load_company_state()
     stats = get_company_stats(cs)
-    st.metric("Total empresas tracked", stats["total_companies"])
+    st.metric("Total companies tracked", stats["total_companies"])
     col_a, col_b = st.columns(2)
-    col_a.metric("Contactadas", stats["contacted"])
-    col_b.metric("En DB (pendientes)", stats["in_db_not_contacted"])
-    st.caption(f"🌐 {stats['with_domain']} con domain · 🎯 {stats['with_decision_maker']} con DM contact")
+    col_a.metric("Contacted", stats["contacted"])
+    col_b.metric("In DB (pending)", stats["in_db_not_contacted"])
+    st.caption(f"🌐 {stats['with_domain']} with domain · 🎯 {stats['with_decision_maker']} with DM contact")
 
     st.divider()
-    st.subheader("🔎 Filtros de display")
-    hide_contacted = st.checkbox("Ocultar contactadas (default)", value=True,
-                                 help="Esconde empresas ya marcadas como contactadas. Recomendado para no saturar prospects.")
-    only_new = st.checkbox("Mostrar solo NEW", value=False,
-                          help="Esconde empresas que ya están en la DB. Útil para descubrir solo prospects nuevos.")
+    st.subheader("🔎 Display filters")
+    hide_contacted = st.checkbox("Hide contacted (default)", value=True,
+                                 help="Hides companies already marked as contacted. Recommended to avoid prospect overlap.")
+    only_new = st.checkbox("Show only NEW", value=False,
+                          help="Hides companies already in the DB. Useful to discover only new prospects.")
 
 # ─── Industry selector + info ───────────────────────────────────
 industries = get_industries()
@@ -79,10 +82,10 @@ industries = get_industries()
 col_ind, col_thresh, col_lookback = st.columns([2, 1, 1])
 with col_ind:
     industry = st.selectbox(
-        "Industria",
+        "Industry",
         options=industries,
         index=industries.index("Manufacturing") if "Manufacturing" in industries else 0,
-        help="Cada industria tiene 10-15 keywords pre-armadas. Manufacturing es el más profundo (core BRJ).",
+        help="Each industry has 10-15 pre-built keywords. Manufacturing is the deepest (NE Florida case study).",
     )
     industry_cfg = get_industry_config(industry)
     st.caption(f"📍 {industry_cfg.get('description', '')}")
@@ -90,11 +93,11 @@ with col_ind:
 
 with col_thresh:
     min_vacancies = st.number_input(
-        "Min vacantes",
+        "Min vacancies",
         min_value=2,
         max_value=50,
         value=5,
-        help="Empresas con >= N vacantes abiertas en el período. 5+ = signal fuerte de staffing externo.",
+        help="Companies with >= N open vacancies in the period. 5+ = strong external staffing signal.",
     )
 
 with col_lookback:
@@ -102,11 +105,11 @@ with col_lookback:
         "Lookback",
         options=["7d", "14d", "30d"],
         index=1,
-        help="Período de búsqueda. 14d es sweet spot.",
+        help="Search period. 14d is the sweet spot.",
     )
 
 # ─── Locations ──────────────────────────────────────────────────
-st.markdown("**Locations** (una por línea)")
+st.markdown("**Locations** (one per line)")
 locations_text = st.text_area(
     "Locations",
     value="Jacksonville, FL\nOrange Park, FL\nSt Augustine, FL",
@@ -135,7 +138,7 @@ if use_google: sources.append("google")
 
 # ─── Queries preview ────────────────────────────────────────────
 queries = get_queries_for_industry(industry)
-with st.expander(f"📋 Ver las {len(queries)} queries que se van a correr para {industry}"):
+with st.expander(f"📋 View the {len(queries)} queries that will run for {industry}"):
     cols = st.columns(3)
     for i, q in enumerate(queries):
         cols[i % 3].write(f"• {q}")
@@ -151,7 +154,7 @@ with col_hunter:
         f"🎯 Hunter HR enrichment (decision-maker lookup) — {credits} credits",
         value=True,
         disabled=credits <= 0,
-        help="Busca HR Director / Plant Manager / Operations al final, solo en empresas con >= min_vacancies. Cache evita re-queries.",
+        help="Searches for HR Director / Plant Manager / Operations at the end, only on companies with >= min_vacancies. Cache prevents re-queries.",
     )
 with col_max:
     max_per_query = st.number_input("Max per query", min_value=10, max_value=100, value=30, step=10)
@@ -160,22 +163,21 @@ with col_run:
     run = st.button("🚀 Find Companies", type="primary", use_container_width=True)
 
 # ─── Restore previous results from session if available ────────
-# Esto evita perder data si el user hace cualquier rerun (click, refresh)
 if "companies_results" in st.session_state and not run:
     st.info(
-        "💾 Resultados del último run cargados desde session. "
-        "Click 🚀 Find Companies para correr de nuevo."
+        "💾 Last run results loaded from session. "
+        "Click 🚀 Find Companies to run again."
     )
     grouped_cached = st.session_state["companies_results"]
     last_run_info = st.session_state.get("companies_results_meta", {})
 
     st.divider()
-    st.subheader(f"📋 {len(grouped_cached)} empresas — {last_run_info.get('industry', '?')} (cached)")
+    st.subheader(f"📋 {len(grouped_cached)} companies — {last_run_info.get('industry', '?')} (cached)")
     st.dataframe(grouped_cached, use_container_width=True, hide_index=True)
 
     csv_data_cached = grouped_cached.to_csv(index=False).encode("utf-8")
     st.download_button(
-        "⬇ Re-download CSV del último run",
+        "⬇ Re-download CSV from last run",
         data=csv_data_cached,
         file_name=last_run_info.get("filename", "results.csv"),
         mime="text/csv",
@@ -184,23 +186,22 @@ if "companies_results" in st.session_state and not run:
 # ─── Run logic ──────────────────────────────────────────────────
 if run:
     if not sources:
-        st.error("Seleccioná al menos 1 source.")
+        st.error("Select at least 1 source.")
         st.stop()
     if not queries:
-        st.error(f"No hay queries definidas para {industry}.")
+        st.error(f"No queries defined for {industry}.")
         st.stop()
     if not locations:
-        st.error("Agregá al menos 1 location.")
+        st.error("Add at least 1 location.")
         st.stop()
 
     st.divider()
 
-    # Step 1: run all queries × all locations
     total_runs = len(queries) * len(locations) * len(sources)
-    st.info(f"⏱ Estimado: {len(queries)} queries × {len(locations)} locations × {len(sources)} sources = {total_runs} micro-searches. Toma 2-5 minutos.")
+    st.info(f"⏱ Estimated: {len(queries)} queries × {len(locations)} locations × {len(sources)} sources = {total_runs} micro-searches. Takes 2-5 minutes.")
 
     all_jobs = []
-    prog = st.progress(0, text=f"Iniciando — 0 / {len(queries)} queries")
+    prog = st.progress(0, text=f"Starting — 0 / {len(queries)} queries")
 
     for qi, query in enumerate(queries):
         prog.progress(qi / len(queries), text=f"Query {qi+1}/{len(queries)}: {query[:40]}")
@@ -216,23 +217,22 @@ if run:
                 df_q["search_query"] = query
                 all_jobs.append(df_q)
         except Exception as e:
-            st.warning(f"Query '{query[:40]}' falló: {e}")
+            st.warning(f"Query '{query[:40]}' failed: {e}")
         time.sleep(0.5)
 
     prog.empty()
 
     if not all_jobs:
-        st.warning("Sin resultados de ninguna query. Probá otra industria o ampliá lookback.")
+        st.warning("No results from any query. Try a different industry or extend lookback period.")
         st.stop()
 
     df_all = pd.concat(all_jobs, ignore_index=True)
-    st.success(f"✓ {len(df_all)} vacantes raw scrapeadas across {len(queries)} queries")
+    st.success(f"✓ {len(df_all)} raw vacancies scraped across {len(queries)} queries")
 
     # Step 2: aggregate by company
     st.divider()
-    st.subheader("📊 Aggregating por empresa...")
+    st.subheader("📊 Aggregating by company...")
 
-    # Clean company name + agrupar
     df_all["company_clean"] = df_all["company"].fillna("").str.lower().str.strip()
     grouped = df_all.groupby("company_clean").agg(
         vacancy_count=("title", "count"),
@@ -246,7 +246,6 @@ if run:
         queries_matched=("search_query", lambda x: ", ".join(sorted(set(x)))),
     ).reset_index()
 
-    # Rename for downstream compatibility
     grouped = grouped.rename(columns={
         "first_company_name": "company",
         "first_company_url": "company_url",
@@ -256,16 +255,14 @@ if run:
         "first_date": "date_posted",
     })
 
-    # Filter por threshold
     before_thresh = len(grouped)
     grouped = grouped[grouped["vacancy_count"] >= min_vacancies].copy()
-    st.caption(f"Threshold filter ({min_vacancies}+ vacantes): {before_thresh} empresas → {len(grouped)} con signal")
+    st.caption(f"Threshold filter ({min_vacancies}+ vacancies): {before_thresh} companies → {len(grouped)} with signal")
 
     if grouped.empty:
-        st.warning(f"Ninguna empresa con {min_vacancies}+ vacantes. Probá threshold menor o ampliá lookback.")
+        st.warning(f"No companies with {min_vacancies}+ vacancies. Try lower threshold or extend lookback.")
         st.stop()
 
-    # Sort by vacancy count desc
     grouped = grouped.sort_values("vacancy_count", ascending=False).reset_index(drop=True)
 
     # Step 3: filter staffing agencies + industry-specific excludes
@@ -277,21 +274,21 @@ if run:
         before_filter = len(grouped)
         grouped, excluded_count, sample = filter_out_staffing_companies(grouped, kw_excl, names_excl)
         if excluded_count > 0:
-            with st.expander(f"🚫 Excluidas {excluded_count} companies (staffing agencies + chains gigantes)"):
+            with st.expander(f"🚫 Excluded {excluded_count} companies (staffing agencies + mega chains)"):
                 for s in sample:
                     st.write(f"  • {s}")
-        st.caption(f"Filtro staffing+chains: {before_filter} → {len(grouped)} prospects relevantes")
+        st.caption(f"Staffing+chains filter: {before_filter} → {len(grouped)} relevant prospects")
     except Exception as e:
-        st.warning(f"Filter failed (no fatal): {e}")
+        st.warning(f"Filter failed (non-fatal): {e}")
         cfg = {}
 
     if grouped.empty:
-        st.warning("Nada quedó después de filters. Revisá thresholds.")
+        st.warning("Nothing remained after filters. Review thresholds.")
         st.stop()
 
     # Step 4: domain enrichment
     st.divider()
-    st.subheader("🌐 Resolviendo dominios reales...")
+    st.subheader("🌐 Resolving real domains...")
 
     google_cse_ok = (
         cfg.get("google_cse", {}).get("cse_id", "").strip()
@@ -308,19 +305,19 @@ if run:
     grouped = enrich_domains_in_dataframe(
         grouped, cfg,
         use_indeed_scrape=True,
-        use_google_search=google_cse_ok,  # solo si está configurado
+        use_google_search=google_cse_ok,
         progress_cb=dcb,
     )
     dprogress.empty()
 
     domains_found = grouped["company_domain"].notna().sum()
-    st.success(f"✓ Dominios: {domains_found}/{len(grouped)} resueltos")
+    st.success(f"✓ Domains: {domains_found}/{len(grouped)} resolved")
 
     # Step 4b: Company phones via Google Places
     st.divider()
-    st.subheader("📞 Resolviendo phones de cada empresa...")
+    st.subheader("📞 Resolving company phones...")
 
-    pprogress = st.progress(0, text="Iniciando...")
+    pprogress = st.progress(0, text="Starting...")
     def pcb(i, total, company, phone):
         label = f"{i}/{total} • {str(company)[:35]}"
         if phone:
@@ -331,15 +328,15 @@ if run:
     pprogress.empty()
 
     phones_found = sum(1 for p in grouped.get("company_phone", []) if p)
-    st.success(f"✓ Phones: {phones_found}/{len(grouped)} encontrados via Google Places")
+    st.success(f"✓ Phones: {phones_found}/{len(grouped)} found via Google Places")
 
     # Step 5: Hunter HR enrichment
     if enrich_hunter and domains_found > 0:
         st.divider()
-        st.subheader("🎯 Hunter — buscando HR decision-makers")
+        st.subheader("🎯 Hunter — searching HR decision-makers")
 
         priority_roles = get_decision_maker_roles(industry)
-        st.caption(f"Priorizando roles para {industry}: {', '.join(priority_roles[:5])}…")
+        st.caption(f"Prioritizing roles for {industry}: {', '.join(priority_roles[:5])}…")
 
         credits_state = load_credits_state()
         hunter_cache = _hunter_load_cache(HUNTER_CACHE_FILE, {})
@@ -350,10 +347,8 @@ if run:
         for i, row in enumerate(grouped.itertuples(index=False)):
             domain = getattr(row, "company_domain", None)
             company_raw = getattr(row, "company", None)
-            # Safe string conversion — handle None/NaN
             company = str(company_raw) if company_raw and str(company_raw).lower() != "nan" else "?"
 
-            # Sanitize domain (puede venir NaN de pandas)
             if domain and (isinstance(domain, float) or str(domain).lower() == "nan"):
                 domain = None
 
@@ -362,7 +357,6 @@ if run:
                 hprogress.progress((i + 1) / len(grouped), text=f"{i+1}/{len(grouped)} • {company[:30]} • (no domain)")
                 continue
 
-            # Check cache by domain+pipeline
             cache_key = f"{domain}__pipelineB"
             if cache_key in hunter_cache:
                 result = {**hunter_cache[cache_key], "from_cache": True}
@@ -389,21 +383,20 @@ if run:
         save_credits_state(credits_state)
         _hunter_save_cache(HUNTER_CACHE_FILE, hunter_cache)
 
-        # Add Hunter results as columns
         grouped["dm_first_name"] = [d.get("first_name", "") for d in decision_makers]
         grouped["dm_last_name"] = [d.get("last_name", "") for d in decision_makers]
         grouped["dm_position"] = [d.get("position", "") for d in decision_makers]
         grouped["dm_email"] = [d.get("email", "") for d in decision_makers]
-        grouped["dm_phone"] = [d.get("phone", "") for d in decision_makers]  # NUEVO
+        grouped["dm_phone"] = [d.get("phone", "") for d in decision_makers]
         grouped["dm_is_priority_role"] = [d.get("is_priority_role", False) for d in decision_makers]
         grouped["dm_confidence"] = [d.get("confidence", "") for d in decision_makers]
 
         hprogress.empty()
         with_dm = sum(1 for d in decision_makers if d.get("email"))
         priority_dm = sum(1 for d in decision_makers if d.get("is_priority_role"))
-        st.success(f"✓ Hunter: {with_dm}/{len(grouped)} con decision-maker, {priority_dm} en role priority (HR/Ops/GM)")
+        st.success(f"✓ Hunter: {with_dm}/{len(grouped)} with decision-maker, {priority_dm} in priority role (HR/Ops/GM)")
 
-    # ─── State sync — clasificar empresas: NEW / IN_DB / CONTACTED ───
+    # ─── State sync — classify companies: NEW / IN_DB / CONTACTED ───
     company_state = load_company_state()
     statuses = []
     for _, row in grouped.iterrows():
@@ -411,7 +404,6 @@ if run:
         statuses.append(st_info["status"])
     grouped["status"] = statuses
 
-    # Upsert TODOS al state (registra appearance) — domain + DM si lo trajimos
     for _, row in grouped.iterrows():
         dm_data = {}
         if enrich_hunter and row.get("dm_email"):
@@ -434,27 +426,27 @@ if run:
         )
     save_company_state(company_state)
 
-    # ─── Apply user filters (hide contacted / only new) ──────────
+    # ─── Apply user filters ──────────
     before_filter = len(grouped)
     if hide_contacted:
         grouped = grouped[grouped["status"] != "CONTACTED"]
     if only_new:
         grouped = grouped[grouped["status"] == "NEW"]
 
-    filter_caption = f"Filtros UI: {before_filter} → {len(grouped)}"
+    filter_caption = f"UI filters: {before_filter} → {len(grouped)}"
     if hide_contacted:
-        filter_caption += f" (ocultas {sum(1 for s in statuses if s == 'CONTACTED')} ya contactadas)"
+        filter_caption += f" (hiding {sum(1 for s in statuses if s == 'CONTACTED')} already contacted)"
     if only_new:
-        filter_caption += f" (solo NEW)"
+        filter_caption += f" (only NEW)"
     st.caption(filter_caption)
 
     if grouped.empty:
-        st.info("No hay empresas que mostrar con los filtros actuales. Desmarcá filtros o cambiá la búsqueda.")
+        st.info("No companies to show with current filters. Uncheck filters or change the search.")
         st.stop()
 
     # ─── Final table ────────────────────────────────────────────
     st.divider()
-    st.subheader(f"📋 {len(grouped)} empresas con signal de staffing — {industry}")
+    st.subheader(f"📋 {len(grouped)} companies with staffing signal — {industry}")
 
     display_cols = ["status", "company", "vacancy_count", "company_phone", "sample_titles", "location"]
     if enrich_hunter:
@@ -474,48 +466,48 @@ if run:
         use_container_width=True,
         hide_index=True,
         column_config={
-            "status": st.column_config.TextColumn("Status", help="NEW=primera vez. IN_DB=ya tracked. CONTACTED=ya contactada (filtrada por default)."),
-            "vacancy_count": st.column_config.NumberColumn("Vacantes", help="Total vacantes en el período"),
-            "company_phone": st.column_config.TextColumn("📞 Company phone", help="Teléfono general de la empresa via Google Places"),
-            "sample_titles": st.column_config.TextColumn("Sample títulos"),
-            "queries_matched": st.column_config.TextColumn("Queries match"),
+            "status": st.column_config.TextColumn("Status", help="NEW=first time. IN_DB=already tracked. CONTACTED=already contacted (filtered by default)."),
+            "vacancy_count": st.column_config.NumberColumn("Vacancies", help="Total vacancies in the period"),
+            "company_phone": st.column_config.TextColumn("📞 Company phone", help="Company general phone via Google Places"),
+            "sample_titles": st.column_config.TextColumn("Sample titles"),
+            "queries_matched": st.column_config.TextColumn("Matched queries"),
             "dm_first_name": st.column_config.TextColumn("Decision-maker name"),
             "dm_position": st.column_config.TextColumn("Position"),
             "dm_email": st.column_config.TextColumn("Email"),
-            "dm_phone": st.column_config.TextColumn("📱 DM direct phone", help="Phone directo del decision-maker (raro — Hunter solo lo trae a veces)"),
+            "dm_phone": st.column_config.TextColumn("📱 DM direct phone", help="Decision-maker direct phone (rare — Hunter only returns it sometimes)"),
             "dm_is_priority_role": st.column_config.CheckboxColumn("Priority role"),
             "company_url": st.column_config.LinkColumn("Indeed/JB"),
         },
     )
 
-    # ─── Bulk action: marcar como contactadas ────────────────────
+    # ─── Bulk action: mark as contacted ────────────────────
     st.divider()
-    st.subheader("📌 Acciones bulk")
+    st.subheader("📌 Bulk actions")
 
     col_action, col_note = st.columns([1, 2])
     with col_action:
-        if st.button(f"✓ Marcar las {len(grouped)} como contactadas", use_container_width=True):
+        if st.button(f"✓ Mark all {len(grouped)} as contacted", use_container_width=True):
             items = [(row["company"], row.get("location", "")) for _, row in grouped.iterrows()]
             company_state = load_company_state()
-            company_state = mark_many_as_contacted(company_state, items, note=f"Marcadas bulk desde {industry} run {datetime.now().strftime('%Y-%m-%d')}")
+            company_state = mark_many_as_contacted(company_state, items, note=f"Bulk marked from {industry} run {datetime.now().strftime('%Y-%m-%d')}")
             save_company_state(company_state)
-            st.success(f"✓ {len(items)} empresas marcadas como contactadas. Próximas búsquedas las van a ocultar.")
-            st.caption("Refrescá la página para ver el filter aplicado.")
+            st.success(f"✓ {len(items)} companies marked as contacted. Future searches will hide them.")
+            st.caption("Refresh the page to see the filter applied.")
     with col_note:
         st.caption(
-            "💡 **Workflow recomendado**: después de hacer outreach manual a las empresas de esta lista "
-            "(LinkedIn DMs, emails, calls), cliqueá este botón. Las próximas búsquedas las van a saltear "
-            "automáticamente. Si necesitás verlas de nuevo, desmarcá 'Ocultar contactadas' en el sidebar."
+            "💡 **Recommended workflow**: after doing manual outreach to companies on this list "
+            "(LinkedIn DMs, emails, calls), click this button. Future searches will skip them "
+            "automatically. If you need to see them again, uncheck 'Hide contacted' in the sidebar."
         )
 
     # Stats
     st.divider()
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Empresas (prospects)", len(grouped))
-    c2.metric("Vacantes totales", int(grouped["vacancy_count"].sum()))
+    c1.metric("Companies (prospects)", len(grouped))
+    c2.metric("Total vacancies", int(grouped["vacancy_count"].sum()))
     if enrich_hunter:
         with_dm = sum(1 for x in grouped.get("dm_email", []) if x)
-        c3.metric("Con HR contact", with_dm)
+        c3.metric("With HR contact", with_dm)
         prio = sum(1 for x in grouped.get("dm_is_priority_role", []) if x)
         c4.metric("Priority role", prio)
 
@@ -523,24 +515,23 @@ if run:
     csv_data = grouped.to_csv(index=False)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     st.download_button(
-        "⬇ Download CSV (todas las columnas)",
+        "⬇ Download CSV (all columns)",
         data=csv_data,
-        file_name=f"brj_companies_{industry.replace(' ', '_')}_{ts}.csv",
+        file_name=f"scm_companies_{industry.replace(' ', '_')}_{ts}.csv",
         mime="text/csv",
     )
 
-    # Save to history
-    history_dir = Path(__file__).resolve().parent.parent / "data" / "searches"
-    history_dir.mkdir(parents=True, exist_ok=True)
+    # Save to history (tenant-scoped)
+    from lib.paths import get_tenant_searches_dir
+    history_dir = get_tenant_searches_dir(user["tenant"])
     csv_filename = f"companies_{ts}_{industry.replace(' ', '_')}.csv"
     grouped.to_csv(history_dir / csv_filename, index=False)
-    st.caption(f"✓ Run guardado en data/searches/{csv_filename}")
+    st.caption(f"✓ Run saved to tenant history ({user['tenant']}) — {csv_filename}")
 
-    # ─── Persistir en session_state para survive reruns ──────────
     st.session_state["companies_results"] = grouped
     st.session_state["companies_results_meta"] = {
         "industry": industry,
-        "filename": f"brj_companies_{industry.replace(' ', '_')}_{ts}.csv",
+        "filename": f"scm_companies_{industry.replace(' ', '_')}_{ts}.csv",
         "timestamp": ts,
         "run_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }

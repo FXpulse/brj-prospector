@@ -26,10 +26,13 @@ from lib.hunter_enrich import (
     load_config as load_hunter_config,
 )
 
-st.set_page_config(page_title="Job Search - BRJ Prospector", page_icon="🔍", layout="wide")
+st.set_page_config(page_title="Job Search - SCM Prospector", page_icon="🔍", layout="wide")
 from lib.styling import apply_brand_styles, brand_header
+from lib.auth import require_auth, render_user_chip
 apply_brand_styles()
-brand_header("🔍 Job Search", "Busca vacantes en múltiples job boards al mismo tiempo")
+user = require_auth()
+render_user_chip(user)
+brand_header("🔍 Job Search", "Search vacancies across multiple job boards simultaneously")
 
 # ─── Search form ────────────────────────────────────────────────
 with st.form("search_form"):
@@ -38,24 +41,24 @@ with st.form("search_form"):
         keywords = st.text_input(
             "Keywords",
             value="warehouse worker",
-            help="Lo que buscan los recruiters de BRJ. Ej: 'warehouse forklift', 'RN nurse bilingual', 'driver CDL'",
+            help="Job title or keywords your recruiters look for. Ex: 'warehouse forklift', 'RN nurse bilingual', 'driver CDL'",
         )
     with col_count:
         results_per_query = st.number_input(
-            "Max por búsqueda",
+            "Max per search",
             min_value=10,
             max_value=200,
             value=50,
             step=10,
-            help="Max vacantes por (location × source)",
+            help="Max vacancies per (location × source)",
         )
 
-    st.markdown("**Locations** — agregá una o más ciudades/ZIPs (una por línea)")
+    st.markdown("**Locations** — one or more cities/ZIPs (one per line)")
     locations_text = st.text_area(
         "Locations",
         value="Jacksonville, FL\nOrange Park, FL",
         height=100,
-        help="Una location por línea. Ej: 'Jacksonville, FL' o '32256'. Vacío = búsqueda global del país.",
+        help="One location per line. Ex: 'Jacksonville, FL' or '32256'. Empty = nationwide search.",
         label_visibility="collapsed",
     )
     locations = [l.strip() for l in locations_text.splitlines() if l.strip()]
@@ -84,7 +87,7 @@ with st.form("search_form"):
         )
 
     with col_jobtype:
-        st.markdown("**Job type (opcional)**")
+        st.markdown("**Job type (optional)**")
         job_type_choice = st.selectbox(
             "Job type",
             options=["Any", "fulltime", "parttime", "contract", "internship"],
@@ -92,33 +95,33 @@ with st.form("search_form"):
         )
         job_type = None if job_type_choice == "Any" else job_type_choice
 
-    st.markdown("**Filtros opcionales** (post-scrape, client-side)")
+    st.markdown("**Optional filters** (post-scrape, client-side)")
     col_must, col_not = st.columns(2)
     with col_must:
         must_contain_text = st.text_input(
-            "Title/descripción debe contener (al menos uno)",
+            "Title/description must contain (at least one)",
             placeholder="bilingual, spanish, portuguese",
-            help="Comma-separated. Filter adicional. Vacío = sin filter.",
+            help="Comma-separated. Additional filter. Empty = no filter.",
         )
     with col_not:
         must_not_text = st.text_input(
-            "Title/descripción NO debe contener (ninguno)",
+            "Title/description must NOT contain (any)",
             placeholder="senior, manager, executive",
-            help="Comma-separated. Excluye matches.",
+            help="Comma-separated. Excludes matches.",
         )
 
     col_dedup, col_exclude, col_hunter, col_run = st.columns([2, 2, 2, 1])
     with col_dedup:
         dedup_companies = st.checkbox(
-            "Dedup por empresa",
+            "Dedup by company",
             value=True,
-            help="1 fila por company, agrupa vacantes",
+            help="1 row per company, groups vacancies together",
         )
     with col_exclude:
         exclude_staffing = st.checkbox(
-            "🚫 Excluir staffing agencies",
+            "🚫 Exclude staffing agencies",
             value=True,
-            help="Filtra competidores (Adecco, Robert Half, etc. + cualquier empresa con 'staffing', 'recruiting' en el nombre). Protege credits Hunter.",
+            help="Filters competitors (Adecco, Robert Half, etc. + any company with 'staffing', 'recruiting' in the name). Protects Hunter credits.",
         )
     with col_hunter:
         try:
@@ -131,7 +134,7 @@ with st.form("search_form"):
             hunter_label,
             value=False,
             disabled=credits_remaining <= 0,
-            help="Busca el recruiter/HR de cada empresa via Hunter.io. Prioriza roles: Recruiter, HR Manager, Talent Acquisition.",
+            help="Finds each company's recruiter/HR via Hunter.io. Prioritizes roles: Recruiter, HR Manager, Talent Acquisition.",
         )
     with col_run:
         st.markdown("&nbsp;")
@@ -140,19 +143,19 @@ with st.form("search_form"):
 # ─── Restore last results from session if available ───────────
 if "jobs_results" in st.session_state and not submit:
     st.info(
-        "💾 Resultados del último Job Search cargados desde session. "
-        "Click 🚀 Run Search para correr de nuevo."
+        "💾 Last Job Search results loaded from session. "
+        "Click 🚀 Run Search to run again."
     )
     cached_df = st.session_state["jobs_results"]
     cached_meta = st.session_state.get("jobs_results_meta", {})
 
     st.divider()
-    st.subheader(f"📋 {len(cached_df)} {'empresas' if cached_meta.get('dedup') else 'vacantes'} (cached)")
+    st.subheader(f"📋 {len(cached_df)} {'companies' if cached_meta.get('dedup') else 'vacancies'} (cached)")
     st.dataframe(cached_df, use_container_width=True, hide_index=True)
 
     csv_cached = cached_df.to_csv(index=False).encode("utf-8")
     st.download_button(
-        "⬇ Re-download CSV del último run",
+        "⬇ Re-download CSV from last run",
         data=csv_cached,
         file_name=cached_meta.get("filename", "results.csv"),
         mime="text/csv",
@@ -161,15 +164,15 @@ if "jobs_results" in st.session_state and not submit:
 # ─── Run search ─────────────────────────────────────────────────
 if submit:
     if not keywords.strip():
-        st.error("Keywords no puede estar vacío.")
+        st.error("Keywords cannot be empty.")
         st.stop()
     if not sources_selected:
-        st.error("Seleccioná al menos 1 source.")
+        st.error("Select at least 1 source.")
         st.stop()
 
     st.divider()
 
-    with st.status(f"Scrapeando {len(sources_selected)} sources × {len(locations) or 1} locations...", expanded=True) as status:
+    with st.status(f"Scraping {len(sources_selected)} sources × {len(locations) or 1} locations...", expanded=True) as status:
         st.write(f"- Keywords: `{keywords}`")
         st.write(f"- Sources: {', '.join(sources_selected)}")
         st.write(f"- Locations: {locations or ['(global)']}")
@@ -195,12 +198,12 @@ if submit:
             st.stop()
 
         if errors:
-            with st.expander(f"⚠️ {len(errors)} location(s) tuvieron error"):
+            with st.expander(f"⚠️ {len(errors)} location(s) had errors"):
                 for err in errors:
                     st.write(f"- `{err['location']}`: {err['error']}")
 
     if df.empty:
-        st.warning("Sin resultados. Probá keywords/locations más amplios.")
+        st.warning("No results. Try broader keywords/locations.")
         st.stop()
 
     # Apply client-side filters
@@ -209,17 +212,17 @@ if submit:
     if must_contain or must_not:
         before = len(df)
         df = filter_by_keywords(df, must_contain=must_contain or None, must_not_contain=must_not or None)
-        st.caption(f"Filtros aplicados: {before} → {len(df)} jobs")
+        st.caption(f"Filters applied: {before} → {len(df)} jobs")
 
     # Optional dedup
     if dedup_companies:
         before = len(df)
         df_display = dedup_by_company(df)
-        st.caption(f"Dedup por empresa: {before} jobs → {len(df_display)} empresas únicas")
+        st.caption(f"Dedup by company: {before} jobs → {len(df_display)} unique companies")
     else:
         df_display = df
 
-    # ─── Excluir staffing agencies (ANTES de Hunter para no quemar credits) ───
+    # ─── Exclude staffing agencies (BEFORE Hunter to save credits) ───
     if exclude_staffing:
         try:
             hunter_cfg = load_hunter_config()
@@ -229,18 +232,18 @@ if submit:
             before = len(df_display)
             df_display, excluded_count, sample_names = filter_out_staffing_companies(df_display, kw_list, name_list)
             if excluded_count > 0:
-                with st.expander(f"🚫 Excluidas {excluded_count} staffing agencies (no se va a gastar Hunter en ellas)"):
-                    st.caption("Companies filtradas:")
+                with st.expander(f"🚫 Excluded {excluded_count} staffing agencies (no Hunter credits spent)"):
+                    st.caption("Filtered companies:")
                     for name in sample_names:
                         st.write(f"  • {name}")
                     if excluded_count > len(sample_names):
-                        st.write(f"  ... y {excluded_count - len(sample_names)} más")
-            st.caption(f"Exclusión staffing: {before} → {len(df_display)} empresas relevantes")
+                        st.write(f"  ... and {excluded_count - len(sample_names)} more")
+            st.caption(f"Staffing exclusion: {before} → {len(df_display)} relevant companies")
         except Exception as e:
-            st.warning(f"Filter staffing falló (no fatal): {e}")
+            st.warning(f"Staffing filter failed (non-fatal): {e}")
 
     if df_display.empty:
-        st.warning("Sin empresas relevantes después de filtros. Probá keywords más amplios o desmarcá 'Excluir staffing'.")
+        st.warning("No relevant companies after filters. Try broader keywords or uncheck 'Exclude staffing'.")
         st.stop()
 
     # ─── Domain enrichment ─────────────────────────────────────
@@ -255,8 +258,8 @@ if submit:
         and not hunter_cfg.get("google_cse", {}).get("cse_id", "").startswith("PASTE")
     )
 
-    with st.status(f"Resolviendo dominios reales de {len(df_display)} empresas...", expanded=False) as ds:
-        progress_ds = st.progress(0, text="Iniciando...")
+    with st.status(f"Resolving real domains for {len(df_display)} companies...", expanded=False) as ds:
+        progress_ds = st.progress(0, text="Starting...")
 
         def domain_progress(i, total, company, domain, source):
             label = f"{i}/{total} • {str(company)[:35]}"
@@ -278,41 +281,41 @@ if submit:
         sources_breakdown = df_display["domain_source"].fillna("").value_counts().to_dict()
         domains_found = df_display["company_domain"].notna().sum()
         ds.update(
-            label=f"✓ Dominios resueltos: {domains_found}/{len(df_display)}",
+            label=f"✓ Domains resolved: {domains_found}/{len(df_display)}",
             state="complete",
         )
 
-    # Mostrar breakdown de sources
+    # Show breakdown of sources
     if domains_found > 0:
         cols = st.columns(5)
         cols[0].metric("Total", len(df_display))
         cols[1].metric("Direct (JobSpy)", sources_breakdown.get("direct", 0) + sources_breakdown.get("company_url", 0))
         cols[2].metric("Indeed scrape", sources_breakdown.get("indeed_scrape", 0))
         cols[3].metric("Google CSE", sources_breakdown.get("google", 0))
-        cols[4].metric("Sin dominio", sources_breakdown.get("", 0) + len([s for s in df_display["domain_source"] if not s]))
+        cols[4].metric("No domain", sources_breakdown.get("", 0) + len([s for s in df_display["domain_source"] if not s]))
 
     if not google_cse_configured:
-        st.info("💡 Tip: configurando Google CSE en config.json subís coverage 30→70%. Free 100 queries/día.")
+        st.info("💡 Tip: configuring Google CSE in config.json boosts domain coverage 30→70%. Free 100 queries/day.")
 
     # ─── Hunter enrichment ─────────────────────────────────────
     if enrich_with_hunter:
         st.divider()
-        st.subheader("🎯 Hunter Enrichment — buscando recruiters")
+        st.subheader("🎯 Hunter Enrichment — searching for recruiters")
 
         # Solo dominios únicos
         domains_with_url = df_display["company_domain"].dropna().nunique() if "company_domain" in df_display.columns else 0
-        st.caption(f"Companies con URL detectable: {domains_with_url}")
+        st.caption(f"Companies with detectable URL: {domains_with_url}")
 
-        progress = st.progress(0, text="Iniciando...")
+        progress = st.progress(0, text="Starting...")
         live_table = st.empty()
         rows_so_far = []
 
         def progress_cb(i, total, domain, result):
-            label = domain or "(sin domain)"
+            label = domain or "(no domain)"
             if result.get("from_cache"):
                 label += " [cache]"
             elif result.get("email"):
-                label += f" → {result.get('first_name','')} {result.get('last_name','')} ({result.get('position','')[:30]})"
+                label += f" → {result.get('first_name','')} {result.get('last_name','')} ({(result.get('position') or '')[:30]})"
             elif result.get("error"):
                 label += f" [error: {result['error'][:40]}]"
             elif not result.get("first_name") and not result.get("error"):
@@ -326,7 +329,7 @@ if submit:
             # Stats
             enriched = sum(1 for x in df_display.get("recruiter_email", []) if x)
             priority = sum(1 for x in df_display.get("recruiter_is_priority", []) if x)
-            st.success(f"✓ Hunter enrichment completo: {enriched}/{len(df_display)} con contacto, {priority} con role priorizado (recruiter/HR)")
+            st.success(f"✓ Hunter enrichment complete: {enriched}/{len(df_display)} with contact, {priority} with priority role (recruiter/HR)")
         except Exception as e:
             progress.empty()
             st.error(f"Hunter enrichment error: {e}")
@@ -334,7 +337,7 @@ if submit:
 
     # ─── Display table ──────────────────────────────────────────
     st.divider()
-    st.subheader(f"📋 Resultados ({len(df_display)} {'empresas' if dedup_companies else 'vacantes'})")
+    st.subheader(f"📋 Results ({len(df_display)} {'companies' if dedup_companies else 'vacancies'})")
 
     # Columns to show
     display_cols = ["company", "title", "location", "date_posted", "site"]
@@ -352,7 +355,6 @@ if submit:
     available_cols = [c for c in display_cols if c in df_display.columns]
     table_df = df_display[available_cols].copy()
 
-    # Truncate long fields para mostrar
     if "all_titles" in table_df.columns:
         table_df["all_titles"] = table_df["all_titles"].fillna("").str[:120]
 
@@ -362,10 +364,10 @@ if submit:
         hide_index=True,
         column_config={
             "job_url": st.column_config.LinkColumn("Job posting"),
-            "company_url": st.column_config.LinkColumn("Empresa site"),
+            "company_url": st.column_config.LinkColumn("Company site"),
             "company": st.column_config.TextColumn("Company", width="medium"),
             "title": st.column_config.TextColumn("Job Title", width="medium"),
-            "emails": st.column_config.TextColumn("Email(s) extraídos", help="JobSpy extrae emails que aparecen en el job description"),
+            "emails": st.column_config.TextColumn("Email(s) extracted", help="JobSpy extracts emails from job descriptions"),
         },
     )
 
@@ -376,35 +378,35 @@ if submit:
     st.download_button(
         "⬇ Download CSV (all columns)",
         data=csv_data,
-        file_name=f"brj_jobs_{safe_kw}_{ts}.csv",
+        file_name=f"scm_jobs_{safe_kw}_{ts}.csv",
         mime="text/csv",
     )
 
-    # Save run to history
-    history_dir = Path(__file__).resolve().parent.parent / "data" / "searches"
-    history_dir.mkdir(parents=True, exist_ok=True)
+    # Save run to history (tenant-scoped)
+    from lib.paths import get_tenant_searches_dir
+    history_dir = get_tenant_searches_dir(user["tenant"])
     df_display.to_csv(history_dir / f"search_{ts}_{safe_kw}.csv", index=False)
 
-    # ─── Persistir en session_state para survive reruns ──────────
+    # ─── Persist in session_state to survive reruns ──────────
     st.session_state["jobs_results"] = df_display
     st.session_state["jobs_results_meta"] = {
         "keywords": keywords,
         "dedup": dedup_companies,
-        "filename": f"brj_jobs_{safe_kw}_{ts}.csv",
+        "filename": f"scm_jobs_{safe_kw}_{ts}.csv",
         "timestamp": ts,
         "run_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
-    st.success(f"✓ Run guardado en data/searches/search_{ts}_{safe_kw}.csv")
+    st.success(f"✓ Run saved to tenant history ({user['tenant']}) — search_{ts}_{safe_kw}.csv")
 
     # ─── Stats ────────────────────────────────────────────────
     st.divider()
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total vacantes", len(df))
-    c2.metric("Empresas únicas", df["company"].nunique() if "company" in df.columns else 0)
+    c1.metric("Total vacancies", len(df))
+    c2.metric("Unique companies", df["company"].nunique() if "company" in df.columns else 0)
 
     with_email = df["emails"].notna().sum() if "emails" in df.columns else 0
-    c3.metric("Con email extraído", with_email)
+    c3.metric("With extracted email", with_email)
 
     with_url = df["company_url"].notna().sum() if "company_url" in df.columns else 0
-    c4.metric("Con company URL", with_url)
+    c4.metric("With company URL", with_url)

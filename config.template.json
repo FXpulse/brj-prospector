@@ -17,6 +17,33 @@
     "api_key": "PASTE_GOOGLE_API_KEY",
     "cse_id": "PASTE_CSE_ID"
   },
+  "auth": {
+    "_comment": "Multi-user auth. Generar password_hash con: python scripts/hash_password.py. Cada user tiene tenant (qué agencia) + tier (starter/pro/custom/admin).",
+    "cookie": {
+      "_comment": "Cookie de sesión. key debe ser random largo y SECRETO (no commitear).",
+      "name": "scm_prospector_auth",
+      "key": "REPLACE_WITH_LONG_RANDOM_STRING_64_CHARS",
+      "expiry_days": 30
+    },
+    "users": {
+      "admin_demo": {
+        "_comment": "Borrar este user demo y crear los tuyos.",
+        "name": "Demo Admin",
+        "email": "admin@example.com",
+        "password_hash": "PASTE_BCRYPT_HASH_FROM_SCRIPT",
+        "tenant": "admin",
+        "tier": "admin"
+      },
+      "brj_recruiter": {
+        "_comment": "Ejemplo de user de un tenant cliente.",
+        "name": "BRJ Recruiter",
+        "email": "recruiter@brj.example",
+        "password_hash": "PASTE_BCRYPT_HASH_FROM_SCRIPT",
+        "tenant": "brj",
+        "tier": "pro"
+      }
+    }
+  },
   "brj_specific": {
     "recruiter_role_keywords": [
       "recruiter", "recruiting", "talent acquisition", "talent acquition",

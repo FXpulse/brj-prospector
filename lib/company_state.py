@@ -13,9 +13,29 @@ import re
 from pathlib import Path
 from datetime import datetime, timezone
 
+from lib.paths import get_current_tenant, get_tenant_state_file
+
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
-STATE_FILE = SCRIPT_DIR / "data" / "company_state.json"
-STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+# Legacy path — usado si caller no pasa tenant Y no hay tenant en session_state.
+# Conservado para migración suave de datos pre-multi-tenant.
+LEGACY_STATE_FILE = SCRIPT_DIR / "data" / "company_state.json"
+
+
+def _state_path(tenant=None):
+    """Devuelve el path del state file para el tenant dado.
+
+    Prioridad:
+    1. tenant arg explícito
+    2. tenant del session_state actual
+    3. legacy path (data/company_state.json) — si existe Y no hay tenant context
+    """
+    if tenant is None:
+        tenant = get_current_tenant(default=None)
+    if tenant:
+        return get_tenant_state_file(tenant)
+    # No tenant context: usar legacy (single-tenant mode)
+    LEGACY_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    return LEGACY_STATE_FILE
 
 # Sufijos corporativos a quitar para normalizar nombre
 CORPORATE_SUFFIXES = [
@@ -60,21 +80,23 @@ def normalize_company_key(company_name, location=""):
     return f"{name}__{city}" if city else name
 
 
-def load_state():
-    """Carga state.json, devuelve dict vacío si no existe."""
-    if not STATE_FILE.exists():
+def load_state(tenant=None):
+    """Carga state.json del tenant. tenant=None lee de session_state, o legacy si nada."""
+    path = _state_path(tenant)
+    if not path.exists():
         return {}
     try:
-        with open(STATE_FILE, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
             return data if isinstance(data, dict) else {}
     except Exception:
         return {}
 
 
-def save_state(state):
-    """Persiste state.json."""
-    with open(STATE_FILE, "w", encoding="utf-8") as f:
+def save_state(state, tenant=None):
+    """Persiste state.json del tenant."""
+    path = _state_path(tenant)
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
 
