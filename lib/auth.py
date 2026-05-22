@@ -199,11 +199,30 @@ def require_auth(cfg=None):
         _login_footer()
         st.stop()
 
-    # Logged in — lookup tenant + tier del config
+    # Logged in — lookup tenant + tier del config (defaults)
     email = st.session_state.get("username")  # stauth llama "username" pero es el email
     user_data = auth_cfg["users"].get(email, {})
     tenant = user_data.get("tenant", "default")
     tier = user_data.get("tier", "starter")
+
+    # ── GHL Status verification (source of truth para billing/access) ──
+    # Admin bypass: tier="admin" siempre tiene acceso (sin pago)
+    if tier != "admin":
+        try:
+            from lib.ghl_status import verify_contact_status, is_ghl_configured
+            if is_ghl_configured(cfg):
+                status = verify_contact_status(email, cfg)
+                if not status.get("access_granted"):
+                    st.error(f"🔒 {status.get('reason', 'Account inactive')}")
+                    if status.get("authenticator"):
+                        pass  # let them logout if they want
+                    st.stop()
+                # Override tier + tenant from GHL (GHL is source of truth)
+                tier = status.get("tier", tier)
+                tenant = status.get("tenant", tenant)
+        except Exception as e:
+            # Si GHL falla, NO bloqueamos (fail-open). Logueamos.
+            st.warning(f"⚠️ Status check unavailable. Contact admin if issues persist.")
 
     # Guardamos en session_state para acceso desde cualquier page
     st.session_state["tenant"] = tenant

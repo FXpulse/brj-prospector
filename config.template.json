@@ -17,6 +17,13 @@
     "api_key": "PASTE_APOLLO_API_KEY",
     "monthly_limit": 2500
   },
+  "ghl": {
+    "_comment": "GHL sub-account 'SCM Prospector Marketing'. Source of truth para billing + access status. PIT creado en Settings → Private Integrations.",
+    "pit": "PASTE_GHL_PIT_HERE",
+    "location_id": "PASTE_LOCATION_ID",
+    "base_url": "https://services.leadconnectorhq.com",
+    "api_version": "2021-07-28"
+  },
   "google_cse": {
     "_comment": "Google Custom Search Engine. Setup: console.cloud.google.com → enable Custom Search API + programmablesearchengine.google.com.",
     "api_key": "PASTE_GOOGLE_API_KEY",
