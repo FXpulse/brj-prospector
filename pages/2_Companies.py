@@ -349,7 +349,13 @@ if run:
 
         for i, row in enumerate(grouped.itertuples(index=False)):
             domain = getattr(row, "company_domain", None)
-            company = getattr(row, "company", "?")
+            company_raw = getattr(row, "company", None)
+            # Safe string conversion — handle None/NaN
+            company = str(company_raw) if company_raw and str(company_raw).lower() != "nan" else "?"
+
+            # Sanitize domain (puede venir NaN de pandas)
+            if domain and (isinstance(domain, float) or str(domain).lower() == "nan"):
+                domain = None
 
             if not domain:
                 decision_makers.append({})
