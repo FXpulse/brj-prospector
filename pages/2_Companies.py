@@ -159,6 +159,28 @@ with col_run:
     st.markdown("&nbsp;")
     run = st.button("🚀 Find Companies", type="primary", use_container_width=True)
 
+# ─── Restore previous results from session if available ────────
+# Esto evita perder data si el user hace cualquier rerun (click, refresh)
+if "companies_results" in st.session_state and not run:
+    st.info(
+        "💾 Resultados del último run cargados desde session. "
+        "Click 🚀 Find Companies para correr de nuevo."
+    )
+    grouped_cached = st.session_state["companies_results"]
+    last_run_info = st.session_state.get("companies_results_meta", {})
+
+    st.divider()
+    st.subheader(f"📋 {len(grouped_cached)} empresas — {last_run_info.get('industry', '?')} (cached)")
+    st.dataframe(grouped_cached, use_container_width=True, hide_index=True)
+
+    csv_data_cached = grouped_cached.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "⬇ Re-download CSV del último run",
+        data=csv_data_cached,
+        file_name=last_run_info.get("filename", "results.csv"),
+        mime="text/csv",
+    )
+
 # ─── Run logic ──────────────────────────────────────────────────
 if run:
     if not sources:
@@ -504,5 +526,15 @@ if run:
     # Save to history
     history_dir = Path(__file__).resolve().parent.parent / "data" / "searches"
     history_dir.mkdir(parents=True, exist_ok=True)
-    grouped.to_csv(history_dir / f"companies_{ts}_{industry.replace(' ', '_')}.csv", index=False)
-    st.caption(f"✓ Run guardado en data/searches/companies_{ts}_{industry.replace(' ', '_')}.csv")
+    csv_filename = f"companies_{ts}_{industry.replace(' ', '_')}.csv"
+    grouped.to_csv(history_dir / csv_filename, index=False)
+    st.caption(f"✓ Run guardado en data/searches/{csv_filename}")
+
+    # ─── Persistir en session_state para survive reruns ──────────
+    st.session_state["companies_results"] = grouped
+    st.session_state["companies_results_meta"] = {
+        "industry": industry,
+        "filename": f"brj_companies_{industry.replace(' ', '_')}_{ts}.csv",
+        "timestamp": ts,
+        "run_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }

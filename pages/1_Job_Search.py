@@ -137,6 +137,27 @@ with st.form("search_form"):
         st.markdown("&nbsp;")
         submit = st.form_submit_button("🚀 Run Search", type="primary", use_container_width=True)
 
+# ─── Restore last results from session if available ───────────
+if "jobs_results" in st.session_state and not submit:
+    st.info(
+        "💾 Resultados del último Job Search cargados desde session. "
+        "Click 🚀 Run Search para correr de nuevo."
+    )
+    cached_df = st.session_state["jobs_results"]
+    cached_meta = st.session_state.get("jobs_results_meta", {})
+
+    st.divider()
+    st.subheader(f"📋 {len(cached_df)} {'empresas' if cached_meta.get('dedup') else 'vacantes'} (cached)")
+    st.dataframe(cached_df, use_container_width=True, hide_index=True)
+
+    csv_cached = cached_df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "⬇ Re-download CSV del último run",
+        data=csv_cached,
+        file_name=cached_meta.get("filename", "results.csv"),
+        mime="text/csv",
+    )
+
 # ─── Run search ─────────────────────────────────────────────────
 if submit:
     if not keywords.strip():
@@ -363,6 +384,16 @@ if submit:
     history_dir = Path(__file__).resolve().parent.parent / "data" / "searches"
     history_dir.mkdir(parents=True, exist_ok=True)
     df_display.to_csv(history_dir / f"search_{ts}_{safe_kw}.csv", index=False)
+
+    # ─── Persistir en session_state para survive reruns ──────────
+    st.session_state["jobs_results"] = df_display
+    st.session_state["jobs_results_meta"] = {
+        "keywords": keywords,
+        "dedup": dedup_companies,
+        "filename": f"brj_jobs_{safe_kw}_{ts}.csv",
+        "timestamp": ts,
+        "run_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
 
     st.success(f"✓ Run guardado en data/searches/search_{ts}_{safe_kw}.csv")
 
