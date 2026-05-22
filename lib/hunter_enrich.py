@@ -180,16 +180,21 @@ def _hunter_find_with_role_priority(domain, cfg, priority_roles, role_check_fn):
     best = emails_sorted[0]
     best_score = score(best)
 
-    # Si el mejor todavía es over-senior (score=9), no lo retornamos — mejor sin contact
-    # que con C-suite que no responde
+    # Si el mejor todavía es over-senior (score=9), no lo retornamos
     if best_score == 9:
         return {"reason": "only over-senior contacts found (CEO/VP/President) — skipped"}
+
+    # Phone: Hunter a veces retorna phone_number en el email object
+    dm_phone = ""
+    if best.get("phone_number"):
+        dm_phone = best["phone_number"]
 
     return {
         "first_name": best.get("first_name", ""),
         "last_name": best.get("last_name", ""),
         "email": best.get("value", ""),
         "position": best.get("position", ""),
+        "phone": dm_phone,
         "confidence": best.get("confidence", 0),
         "is_priority_role": best_score == 0,
         "is_recruiter_role": best_score == 0,  # backward compat con Pipeline A

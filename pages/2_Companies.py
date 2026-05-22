@@ -34,6 +34,7 @@ from lib.industry_keywords import (
     get_exclude_companies_for_industry,
 )
 from lib.domain_lookup import enrich_domains_in_dataframe
+from lib.places_lookup import enrich_phones_in_dataframe
 from lib.hunter_enrich import find_decision_maker_at_domain, hunter_credits_remaining, load_config as load_hunter_config
 from lib.hunter_enrich import _load_json as _hunter_load_cache, _save_json as _hunter_save_cache, CACHE_FILE as HUNTER_CACHE_FILE
 from lib.hunter_enrich import load_credits_state, save_credits_state
@@ -293,6 +294,23 @@ if run:
     domains_found = grouped["company_domain"].notna().sum()
     st.success(f"✓ Dominios: {domains_found}/{len(grouped)} resueltos")
 
+    # Step 4b: Company phones via Google Places
+    st.divider()
+    st.subheader("📞 Resolviendo phones de cada empresa...")
+
+    pprogress = st.progress(0, text="Iniciando...")
+    def pcb(i, total, company, phone):
+        label = f"{i}/{total} • {str(company)[:35]}"
+        if phone:
+            label += f" → {phone}"
+        pprogress.progress(i / total, text=label[:90])
+
+    grouped = enrich_phones_in_dataframe(grouped, cfg, progress_cb=pcb)
+    pprogress.empty()
+
+    phones_found = sum(1 for p in grouped.get("company_phone", []) if p)
+    st.success(f"✓ Phones: {phones_found}/{len(grouped)} encontrados via Google Places")
+
     # Step 5: Hunter HR enrichment
     if enrich_hunter and domains_found > 0:
         st.divider()
@@ -348,6 +366,7 @@ if run:
         grouped["dm_last_name"] = [d.get("last_name", "") for d in decision_makers]
         grouped["dm_position"] = [d.get("position", "") for d in decision_makers]
         grouped["dm_email"] = [d.get("email", "") for d in decision_makers]
+        grouped["dm_phone"] = [d.get("phone", "") for d in decision_makers]  # NUEVO
         grouped["dm_is_priority_role"] = [d.get("is_priority_role", False) for d in decision_makers]
         grouped["dm_confidence"] = [d.get("confidence", "") for d in decision_makers]
 
@@ -409,10 +428,13 @@ if run:
     st.divider()
     st.subheader(f"📋 {len(grouped)} empresas con signal de staffing — {industry}")
 
-    display_cols = ["status", "company", "vacancy_count", "sample_titles", "location", "queries_matched"]
+    display_cols = ["status", "company", "vacancy_count", "company_phone", "sample_titles", "location"]
     if enrich_hunter:
-        display_cols.extend(["dm_first_name", "dm_last_name", "dm_position", "dm_email", "dm_is_priority_role"])
-    display_cols.extend(["company_domain", "domain_source", "company_url"])
+        display_cols.extend([
+            "dm_first_name", "dm_last_name", "dm_position",
+            "dm_email", "dm_phone", "dm_is_priority_role",
+        ])
+    display_cols.extend(["company_domain", "queries_matched", "domain_source", "company_url"])
     avail = [c for c in display_cols if c in grouped.columns]
     table = grouped[avail].copy()
 
@@ -426,11 +448,13 @@ if run:
         column_config={
             "status": st.column_config.TextColumn("Status", help="NEW=primera vez. IN_DB=ya tracked. CONTACTED=ya contactada (filtrada por default)."),
             "vacancy_count": st.column_config.NumberColumn("Vacantes", help="Total vacantes en el período"),
+            "company_phone": st.column_config.TextColumn("📞 Company phone", help="Teléfono general de la empresa via Google Places"),
             "sample_titles": st.column_config.TextColumn("Sample títulos"),
             "queries_matched": st.column_config.TextColumn("Queries match"),
             "dm_first_name": st.column_config.TextColumn("Decision-maker name"),
             "dm_position": st.column_config.TextColumn("Position"),
             "dm_email": st.column_config.TextColumn("Email"),
+            "dm_phone": st.column_config.TextColumn("📱 DM direct phone", help="Phone directo del decision-maker (raro — Hunter solo lo trae a veces)"),
             "dm_is_priority_role": st.column_config.CheckboxColumn("Priority role"),
             "company_url": st.column_config.LinkColumn("Indeed/JB"),
         },
